@@ -21,9 +21,21 @@ const nextConfig = {
     parallelServerBuildTraces: true,
     parallelServerCompiles: true,
   },
+  // Environment variables configuration
+  env: {
+    NEXT_PUBLIC_ASTRONOMY_API_KEY: process.env.NEXT_PUBLIC_ASTRONOMY_API_KEY,
+    ASTRONOMY_API_SECRET: process.env.ASTRONOMY_API_SECRET,
+    NEXT_PUBLIC_ORIGIN_URL: process.env.NEXT_PUBLIC_ORIGIN_URL || 'http://localhost:3000',
+  },
+  // Optional: Add runtime configuration
+  publicRuntimeConfig: {
+    astronomyApiUrl: 'https://api.astronomyapi.com/api/v2',
+  },
+  // Optional: Add server-only runtime configuration
+  serverRuntimeConfig: {
+    // Add any server-only config here
+  },
 }
-
-mergeConfig(nextConfig, userConfig)
 
 function mergeConfig(nextConfig, userConfig) {
   if (!userConfig) {
@@ -44,5 +56,7 @@ function mergeConfig(nextConfig, userConfig) {
     }
   }
 }
+
+mergeConfig(nextConfig, userConfig)
 
 export default nextConfig
