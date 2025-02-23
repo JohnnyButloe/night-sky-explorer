@@ -1,24 +1,22 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-
-interface LocationSuggestion {
-  display_name: string
-  lat: string
-  lon: string
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getLocationSuggestions } from "../utils/api"
+import type { LocationSuggestion } from "../types"
 
 interface LocationAutocompleteProps {
-  onLocationSelect: (latitude: number, longitude: number) => void
+  onLocationSelect: (latitude: number, longitude: number, time: string) => void
 }
 
 export default function LocationAutocomplete({ onLocationSelect }: LocationAutocompleteProps) {
   const [input, setInput] = useState("")
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [selectedTime, setSelectedTime] = useState("now")
   const autocompleteRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,51 +32,23 @@ export default function LocationAutocomplete({ onLocationSelect }: LocationAutoc
     }
   }, [])
 
-  const debounce = (func: (...args: any[]) => void, delay: number) => {
-    let timeoutId: NodeJS.Timeout
-    return (...args: any[]) => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(() => func(...args), delay)
-    }
-  }
-
-  const fetchSuggestions = async (query: string) => {
-    if (query.length < 3) return
-    setIsLoading(true)
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1`,
-      )
-      if (!response.ok) throw new Error("Failed to fetch suggestions")
-      const data: any[] = await response.json()
-      const filteredData = data
-        .filter((item) => item.type === "city" || item.type === "administrative")
-        .map((item) => ({
-          display_name: `${item.address.city || item.address.town || item.address.village || item.address.state || ""}, ${item.address.country}`,
-          lat: item.lat,
-          lon: item.lon,
-        }))
-      setSuggestions(filteredData)
-      setShowSuggestions(true)
-    } catch (error) {
-      console.error("Error fetching suggestions:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const debouncedFetchSuggestions = debounce(fetchSuggestions, 300)
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setInput(value)
-    debouncedFetchSuggestions(value)
+    if (value.length >= 3) {
+      const suggestions = await getLocationSuggestions(value)
+      setSuggestions(suggestions)
+      setShowSuggestions(true)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
   }
 
   const handleSuggestionClick = (suggestion: LocationSuggestion) => {
     setInput(suggestion.display_name)
     setShowSuggestions(false)
-    onLocationSelect(Number.parseFloat(suggestion.lat), Number.parseFloat(suggestion.lon))
+    onLocationSelect(Number.parseFloat(suggestion.lat), Number.parseFloat(suggestion.lon), selectedTime)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -91,16 +61,27 @@ export default function LocationAutocomplete({ onLocationSelect }: LocationAutoc
 
   return (
     <div ref={autocompleteRef} className="relative">
-      <form onSubmit={handleSubmit} className="flex space-x-2">
-        <Input
-          type="text"
-          value={input}
-          onChange={handleInputChange}
-          placeholder="Enter city or country"
-          className="flex-grow"
-        />
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Loading..." : "Explore"}
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <div className="flex space-x-2">
+          <Input
+            type="text"
+            value={input}
+            onChange={handleInputChange}
+            placeholder="Enter city or country"
+            className="flex-grow"
+          />
+          <Select value={selectedTime} onValueChange={setSelectedTime}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select time" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="now">Now</SelectItem>
+              <SelectItem value="tonight">Tonight (9 PM)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="submit" className="w-full">
+          Explore
         </Button>
       </form>
       {showSuggestions && suggestions.length > 0 && (
