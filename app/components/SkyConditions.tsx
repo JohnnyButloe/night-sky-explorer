@@ -7,58 +7,6 @@ interface SkyConditionsProps {
   currentTime: Date;
 }
 
-function HourlyForecastGraph({
-  forecast,
-}: {
-  forecast: CelestialData['weather']['hourlyForecast'];
-}) {
-  const maxCloudCover = Math.max(...forecast.map((f) => f.cloudCover));
-  const maxRainProbability = Math.max(
-    ...forecast.map((f) => f.rainProbability),
-  );
-
-  const getSummary = () => {
-    const clearHours = forecast.filter(
-      (f) => f.cloudCover < 30 && f.rainProbability < 30,
-    );
-    if (clearHours.length === forecast.length) {
-      return 'Clear skies all night';
-    } else if (clearHours.length > 0) {
-      const lastClearHour = new Date(clearHours[clearHours.length - 1].time);
-      return `Clear skies until ${lastClearHour.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } else {
-      return 'Unfavorable conditions for stargazing tonight';
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-end h-24 space-x-1">
-        {forecast.map((f, index) => (
-          <div key={index} className="flex flex-col items-center w-6">
-            <div className="w-full h-full flex flex-col-reverse">
-              <div
-                className="w-full bg-blue-500 opacity-50"
-                style={{ height: `${(f.cloudCover / maxCloudCover) * 100}%` }}
-                title={`Cloud cover: ${f.cloudCover}%`}
-              ></div>
-              <div
-                className="w-full bg-blue-700"
-                style={{
-                  height: `${(f.rainProbability / maxRainProbability) * 100}%`,
-                }}
-                title={`Rain probability: ${f.rainProbability}%`}
-              ></div>
-            </div>
-            <span className="text-[10px] mt-1">{f.time.split(' ')[1]}</span>
-          </div>
-        ))}
-      </div>
-      <div className="text-xs text-gray-600">{getSummary()}</div>
-    </div>
-  );
-}
-
 export default function SkyConditions({
   data,
   currentTime,
@@ -85,6 +33,12 @@ export default function SkyConditions({
               <span>Sunrise: {data.sunrise}</span>
             </div>
           </div>
+          <div className="text-sm mt-2">
+            <p>
+              <strong>Light Pollution:</strong>{' '}
+              {data.weather.lightPollution || 'N/A'}
+            </p>
+          </div>
         </div>
 
         <div className="col-span-12 space-y-1">
@@ -102,17 +56,6 @@ export default function SkyConditions({
               <span>Cloud Cover: {data.weather.currentCloudCover}%</span>
             </div>
           </div>
-        </div>
-
-        <div className="col-span-12 space-y-1">
-          <h3 className="font-semibold text-sm">Hourly Forecast</h3>
-          <div className="text-[10px] flex items-center">
-            <span className="inline-block w-2 h-2 bg-blue-700 mr-1"></span>
-            Rain Probability
-            <span className="inline-block w-2 h-2 bg-blue-500 opacity-50 ml-2 mr-1"></span>
-            Cloud Cover
-          </div>
-          <HourlyForecastGraph forecast={data.weather.hourlyForecast} />
         </div>
 
         <p className="col-span-12 text-xs text-gray-600">
