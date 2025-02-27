@@ -8,22 +8,29 @@ interface MoonCardProps {
 }
 
 const MoonCard: React.FC<MoonCardProps> = ({ object, currentTime }) => {
-  // Extract moon-specific data from additionalInfo
-  const { phase, illumination, riseDirection, maxAltitude, bestViewingTime } =
-    object.additionalInfo;
+  const {
+    phase,
+    illumination,
+    riseDirection,
+    maxAltitude,
+    bestViewingTime,
+    riseTime,
+    setTime,
+  } = object.additionalInfo;
 
-  // Find current hour data based on currentTime (fallback to first entry if not found)
+  console.log('Moon Data:', { riseTime, setTime }); // Debugging output
+
   const currentHourData =
     object.hourlyData.find(
       (data) => data.time.getTime() === currentTime.getTime(),
     ) || object.hourlyData[0];
 
   return (
-    <Card className="bg-card/50 backdrop-blur-sm">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg text-primary">{object.name}</CardTitle>
+    <Card className="bg-card/50 backdrop-blur-sm p-3 w-64">
+      <CardHeader className="pb-1">
+        <CardTitle className="text-md text-primary">{object.name}</CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 text-xs">
         <p>
           <strong>Phase:</strong> {phase}
         </p>
@@ -37,16 +44,38 @@ const MoonCard: React.FC<MoonCardProps> = ({ object, currentTime }) => {
           <strong>Azimuth:</strong> {currentHourData?.azimuth.toFixed(1)}°
         </p>
         <p>
-          <strong>Rise Direction:</strong> {riseDirection}
-        </p>
-        <p>
           <strong>Max Altitude:</strong> {maxAltitude.toFixed(1)}°
         </p>
         {bestViewingTime && (
           <p>
-            <strong>Best Viewing Time:</strong>{' '}
-            {bestViewingTime.toLocaleTimeString()}
+            <strong>Best Viewing:</strong>{' '}
+            {bestViewingTime.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </p>
+        )}
+        {riseTime ? (
+          <p>
+            <strong>Rise Time:</strong>{' '}
+            {new Date(riseTime).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        ) : (
+          <p className="text-gray-400">Rise Time: N/A</p>
+        )}
+        {setTime ? (
+          <p>
+            <strong>Set Time:</strong>{' '}
+            {new Date(setTime).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        ) : (
+          <p className="text-gray-400">Set Time: N/A</p>
         )}
       </CardContent>
     </Card>
