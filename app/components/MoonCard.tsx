@@ -26,7 +26,7 @@ const MoonCard: React.FC<MoonCardProps> = ({ object, currentTime }) => {
     ) || object.hourlyData[0];
 
   return (
-    <Card className="bg-card/50 backdrop-blur-sm p-3 w-64">
+    <Card className="bg-card/50 backdrop-blur-sm p-3 w-full">
       <CardHeader className="pb-1">
         <CardTitle className="text-md text-primary">{object.name}</CardTitle>
       </CardHeader>

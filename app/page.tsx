@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import CelestialObjectsList from './components/CelestialObjectsList';
 import LocationAutocomplete from './components/LocationAutocomplete';
-import TimeSlider from './components/TimeSlider';
-import SnapToBestTimes from './components/SnapToBestTimes';
+import Highlights from './components/Highlights';
 import SkyConditions from './components/SkyConditions';
 import MoonCard from './components/MoonCard';
 import { getCelestialData } from './utils/api';
@@ -30,7 +29,7 @@ export default function Home() {
     try {
       const data = await getCelestialData(latitude, longitude, time);
       setCelestialData(data);
-      setCurrentTime(data.nightStart); // Initial time set to nightStart
+      setCurrentTime(data.nightStart);
     } catch (error) {
       console.error('Error fetching celestial data:', error);
     } finally {
@@ -43,16 +42,12 @@ export default function Home() {
   };
 
   const handleEditLocation = () => {
-    // Reset the celestial data and current time to re-display the location input
     setCelestialData(null);
     setCurrentTime(null);
     setSelectedObject(null);
   };
 
-  // Find the Moon object
   const moonObject = celestialData?.objects.find((obj) => obj.name === 'Moon');
-
-  // Filter out the Moon from the objects list for CelestialObjectsList
   const filteredCelestialData = celestialData && {
     ...celestialData,
     objects: celestialData.objects.filter((obj) => obj.name !== 'Moon'),
@@ -64,7 +59,6 @@ export default function Home() {
         Night Sky Explorer
       </h1>
       <div className="w-full max-w-7xl grid grid-cols-12 gap-4">
-        {/* Show location input only when no celestialData is available */}
         {!celestialData && (
           <Card className="col-span-12 mb-4 bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-2">
@@ -86,33 +80,18 @@ export default function Home() {
 
         {celestialData && currentTime && (
           <>
-            <Card className="col-span-12 mb-4 bg-card/50 backdrop-blur-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg text-primary">
-                  Night Sky Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <TimeSlider
-                  startTime={celestialData.nightStart}
-                  endTime={celestialData.nightEnd}
-                  currentTime={currentTime}
-                  onTimeChange={handleTimeChange}
-                  selectedObject={selectedObject}
-                  celestialObjects={celestialData.objects}
-                />
-                <SnapToBestTimes
-                  celestialObjects={celestialData.objects}
-                  onSnapTimeChange={handleTimeChange}
-                />
-                {moonObject && (
-                  <div className="mt-4">
-                    <MoonCard object={moonObject} currentTime={currentTime} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <div className="col-span-12 md:col-span-8 lg:col-span-9">
+            {/* Highlights Component replacing TimeSlider */}
+            <div className="col-span-8">
+              <Highlights data={celestialData} currentTime={currentTime} />
+            </div>
+
+            <div className="col-span-4">
+              {moonObject && (
+                <MoonCard object={moonObject} currentTime={currentTime} />
+              )}
+            </div>
+
+            <div className="col-span-8">
               {filteredCelestialData && (
                 <CelestialObjectsList
                   data={filteredCelestialData}
@@ -121,14 +100,9 @@ export default function Home() {
                 />
               )}
             </div>
-            <div className="col-span-12 md:col-span-4 lg:col-span-3">
+
+            <div className="col-span-4">
               <SkyConditions data={celestialData} currentTime={currentTime} />
-              <button
-                onClick={handleEditLocation}
-                className="mt-4 bg-blue-600 text-white rounded-md px-3 py-1"
-              >
-                Edit Location
-              </button>
             </div>
           </>
         )}
