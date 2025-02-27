@@ -1,17 +1,17 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 interface CelestialObject {
-  name: string
-  rightAscension: string
-  declination: string
+  name: string;
+  rightAscension: string;
+  declination: string;
 }
 
 interface CelestialEventsProps {
   data: {
-    planets: CelestialObject[]
-    stars: CelestialObject[]
-    events: string[]
-  }
+    planets: CelestialObject[];
+    stars: CelestialObject[];
+    events: string[];
+  };
 }
 
 export default function CelestialEvents({ data }: CelestialEventsProps) {
@@ -61,5 +61,5 @@ export default function CelestialEvents({ data }: CelestialEventsProps) {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

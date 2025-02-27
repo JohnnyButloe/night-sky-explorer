@@ -1,9 +1,9 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Cloud, Eye, Droplet } from "lucide-react"
-import type { WeatherData } from "../types"
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Cloud, Eye, Droplet } from 'lucide-react';
+import type { WeatherData } from '../types';
 
 interface WeatherCardProps {
-  weather: WeatherData
+  weather: WeatherData;
 }
 
 export default function WeatherCard({ weather }: WeatherCardProps) {
@@ -21,14 +21,20 @@ export default function WeatherCard({ weather }: WeatherCardProps) {
             </div>
             <div className="flex items-center">
               <Eye className="w-5 h-5 mr-2" />
-              <span>Current Visibility: {(weather.currentVisibility / 1000).toFixed(1)} km</span>
+              <span>
+                Current Visibility:{' '}
+                {(weather.currentVisibility / 1000).toFixed(1)} km
+              </span>
             </div>
           </div>
           <div>
             <h4 className="font-semibold mb-2">Hourly Forecast</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {weather.hourlyForecast.map((forecast, index) => (
-                <div key={index} className="bg-secondary p-2 rounded-md text-sm">
+                <div
+                  key={index}
+                  className="bg-secondary p-2 rounded-md text-sm"
+                >
                   <p className="font-medium">{forecast.time}</p>
                   <div className="flex items-center">
                     <Cloud className="w-4 h-4 mr-1" />
@@ -54,5 +60,5 @@ export default function WeatherCard({ weather }: WeatherCardProps) {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

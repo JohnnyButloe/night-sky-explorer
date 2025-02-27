@@ -1,27 +1,35 @@
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Sun, Sunrise, Eye, Cloud } from "lucide-react"
-import type { CelestialData } from "../types"
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Sun, Sunrise, Eye, Cloud } from 'lucide-react';
+import type { CelestialData } from '../types';
 
 interface SkyConditionsProps {
-  data: CelestialData
-  currentTime: Date
+  data: CelestialData;
+  currentTime: Date;
 }
 
-function HourlyForecastGraph({ forecast }: { forecast: CelestialData["weather"]["hourlyForecast"] }) {
-  const maxCloudCover = Math.max(...forecast.map((f) => f.cloudCover))
-  const maxRainProbability = Math.max(...forecast.map((f) => f.rainProbability))
+function HourlyForecastGraph({
+  forecast,
+}: {
+  forecast: CelestialData['weather']['hourlyForecast'];
+}) {
+  const maxCloudCover = Math.max(...forecast.map((f) => f.cloudCover));
+  const maxRainProbability = Math.max(
+    ...forecast.map((f) => f.rainProbability),
+  );
 
   const getSummary = () => {
-    const clearHours = forecast.filter((f) => f.cloudCover < 30 && f.rainProbability < 30)
+    const clearHours = forecast.filter(
+      (f) => f.cloudCover < 30 && f.rainProbability < 30,
+    );
     if (clearHours.length === forecast.length) {
-      return "Clear skies all night"
+      return 'Clear skies all night';
     } else if (clearHours.length > 0) {
-      const lastClearHour = new Date(clearHours[clearHours.length - 1].time)
-      return `Clear skies until ${lastClearHour.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      const lastClearHour = new Date(clearHours[clearHours.length - 1].time);
+      return `Clear skies until ${lastClearHour.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } else {
-      return "Unfavorable conditions for stargazing tonight"
+      return 'Unfavorable conditions for stargazing tonight';
     }
-  }
+  };
 
   return (
     <div className="space-y-2">
@@ -36,20 +44,25 @@ function HourlyForecastGraph({ forecast }: { forecast: CelestialData["weather"][
               ></div>
               <div
                 className="w-full bg-blue-700"
-                style={{ height: `${(f.rainProbability / maxRainProbability) * 100}%` }}
+                style={{
+                  height: `${(f.rainProbability / maxRainProbability) * 100}%`,
+                }}
                 title={`Rain probability: ${f.rainProbability}%`}
               ></div>
             </div>
-            <span className="text-[10px] mt-1">{f.time.split(" ")[1]}</span>
+            <span className="text-[10px] mt-1">{f.time.split(' ')[1]}</span>
           </div>
         ))}
       </div>
       <div className="text-xs text-gray-600">{getSummary()}</div>
     </div>
-  )
+  );
 }
 
-export default function SkyConditions({ data, currentTime }: SkyConditionsProps) {
+export default function SkyConditions({
+  data,
+  currentTime,
+}: SkyConditionsProps) {
   return (
     <Card className="h-full bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-2">
@@ -79,7 +92,10 @@ export default function SkyConditions({ data, currentTime }: SkyConditionsProps)
           <div className="grid grid-cols-2 text-sm">
             <div className="flex items-center">
               <Eye className="w-4 h-4 mr-1" />
-              <span>Visibility: {(data.weather.currentVisibility / 1000).toFixed(1)} km</span>
+              <span>
+                Visibility: {(data.weather.currentVisibility / 1000).toFixed(1)}{' '}
+                km
+              </span>
             </div>
             <div className="flex items-center">
               <Cloud className="w-4 h-4 mr-1" />
@@ -99,8 +115,10 @@ export default function SkyConditions({ data, currentTime }: SkyConditionsProps)
           <HourlyForecastGraph forecast={data.weather.hourlyForecast} />
         </div>
 
-        <p className="col-span-12 text-xs text-gray-600">Selected Time: {currentTime.toLocaleString()}</p>
+        <p className="col-span-12 text-xs text-gray-600">
+          Selected Time: {currentTime.toLocaleString()}
+        </p>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,63 +1,78 @@
-"use client"
+'use client';
 
-import type React from "react"
-import { useState, useEffect, useRef } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getLocationSuggestions } from "../utils/api"
-import type { LocationSuggestion } from "../types"
+import type React from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getLocationSuggestions } from '../utils/api';
+import type { LocationSuggestion } from '../types';
 
 interface LocationAutocompleteProps {
-  onLocationSelect: (latitude: number, longitude: number, time: string) => void
+  onLocationSelect: (latitude: number, longitude: number, time: string) => void;
 }
 
-export default function LocationAutocomplete({ onLocationSelect }: LocationAutocompleteProps) {
-  const [input, setInput] = useState("")
-  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [selectedTime, setSelectedTime] = useState("now")
-  const autocompleteRef = useRef<HTMLDivElement>(null)
+export default function LocationAutocomplete({
+  onLocationSelect,
+}: LocationAutocompleteProps) {
+  const [input, setInput] = useState('');
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedTime, setSelectedTime] = useState('now');
+  const autocompleteRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
       }
-    }
+    };
 
-    document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setInput(value)
+    const value = e.target.value;
+    setInput(value);
     if (value.length >= 3) {
-      const suggestions = await getLocationSuggestions(value)
-      setSuggestions(suggestions)
-      setShowSuggestions(true)
+      const suggestions = await getLocationSuggestions(value);
+      setSuggestions(suggestions);
+      setShowSuggestions(true);
     } else {
-      setSuggestions([])
-      setShowSuggestions(false)
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
-  }
+  };
 
   const handleSuggestionClick = (suggestion: LocationSuggestion) => {
-    setInput(suggestion.display_name)
-    setShowSuggestions(false)
-    onLocationSelect(Number.parseFloat(suggestion.lat), Number.parseFloat(suggestion.lon), selectedTime)
-  }
+    setInput(suggestion.display_name);
+    setShowSuggestions(false);
+    onLocationSelect(
+      Number.parseFloat(suggestion.lat),
+      Number.parseFloat(suggestion.lon),
+      selectedTime,
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (suggestions.length > 0) {
-      const firstSuggestion = suggestions[0]
-      handleSuggestionClick(firstSuggestion)
+      const firstSuggestion = suggestions[0];
+      handleSuggestionClick(firstSuggestion);
     }
-  }
+  };
 
   return (
     <div ref={autocompleteRef} className="relative">
@@ -98,5 +113,5 @@ export default function LocationAutocomplete({ onLocationSelect }: LocationAutoc
         </ul>
       )}
     </div>
-  )
+  );
 }

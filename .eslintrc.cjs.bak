@@ -1,0 +1,34 @@
+module.exports = {
+  env: {
+    browser: true,
+    node: true,
+    es2021: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:prettier/recommended',
+  ],
+  plugins: ['@typescript-eslint', 'prettier'],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 2021,
+    sourceType: 'module',
+    project: './tsconfig.json',
+  },
+  rules: {
+    'no-undef': 'off',
+    'no-unused-vars': ['error', { varsIgnorePattern: '^(NodeJS|ProcessEnv)$' }],
+    'prettier/prettier': 'error',
+  },
+  ignorePatterns: [
+    '**/.next/**',
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/build/**',
+    'global.d.ts',
+    'next.config.mjs',
+    'postcss.config.js',
+    'tailwind.config.ts',
+  ],
+};

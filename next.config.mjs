@@ -1,6 +1,6 @@
-let userConfig = undefined
+let userConfig = undefined;
 try {
-  userConfig = await import('./v0-user-next.config')
+  userConfig = await import('./v0-user-next.config');
 } catch (e) {
   // ignore error
 }
@@ -25,7 +25,8 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_ASTRONOMY_API_KEY: process.env.NEXT_PUBLIC_ASTRONOMY_API_KEY,
     ASTRONOMY_API_SECRET: process.env.ASTRONOMY_API_SECRET,
-    NEXT_PUBLIC_ORIGIN_URL: process.env.NEXT_PUBLIC_ORIGIN_URL || 'http://localhost:3000',
+    NEXT_PUBLIC_ORIGIN_URL:
+      process.env.NEXT_PUBLIC_ORIGIN_URL || 'http://localhost:3000',
   },
   // Optional: Add runtime configuration
   publicRuntimeConfig: {
@@ -35,11 +36,11 @@ const nextConfig = {
   serverRuntimeConfig: {
     // Add any server-only config here
   },
-}
+};
 
 function mergeConfig(nextConfig, userConfig) {
   if (!userConfig) {
-    return
+    return;
   }
 
   for (const key in userConfig) {
@@ -50,13 +51,13 @@ function mergeConfig(nextConfig, userConfig) {
       nextConfig[key] = {
         ...nextConfig[key],
         ...userConfig[key],
-      }
+      };
     } else {
-      nextConfig[key] = userConfig[key]
+      nextConfig[key] = userConfig[key];
     }
   }
 }
 
-mergeConfig(nextConfig, userConfig)
+mergeConfig(nextConfig, userConfig);
 
-export default nextConfig
+export default nextConfig;

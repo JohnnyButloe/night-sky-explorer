@@ -1,12 +1,10 @@
+export {};
+
 declare global {
-    namespace NodeJS {
-      interface ProcessEnv {
-        NEXT_PUBLIC_ASTRONOMY_API_KEY: string;
-        ASTRONOMY_API_SECRET: string;
-      }
+  namespace NodeJS {
+    interface ProcessEnv {
+      OPENWEATHERMAP_API_KEY: string;
+      // Add other environment variables as needed
     }
   }
-  
-  // If this file has no import/export statements (i.e. is a script)
-  // convert it into a module by adding an empty export statement.
-  export {}
+}
