@@ -15,7 +15,7 @@ export default function Home() {
     null,
   );
   const [loading, setLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [celestialTime, setCelestialTime] = useState<Date | null>(null); // ✅ TimeSlider updates only celestial objects & sky conditions
   const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(
     null,
   );
@@ -29,7 +29,7 @@ export default function Home() {
     try {
       const data = await getCelestialData(latitude, longitude, time);
       setCelestialData(data);
-      setCurrentTime(data.nightStart);
+      setCelestialTime(data.nightStart); // ✅ Initialize TimeSlider time separately
     } catch (error) {
       console.error('Error fetching celestial data:', error);
     } finally {
@@ -37,13 +37,9 @@ export default function Home() {
     }
   };
 
-  const handleTimeChange = (newTime: Date) => {
-    setCurrentTime(newTime);
-  };
-
   const handleEditLocation = () => {
     setCelestialData(null);
-    setCurrentTime(null);
+    setCelestialTime(null);
     setSelectedObject(null);
   };
 
@@ -78,32 +74,35 @@ export default function Home() {
           </p>
         )}
 
-        {celestialData && currentTime && (
+        {celestialData && celestialTime && (
           <>
             <div className="col-span-8">
-              <Highlights data={celestialData} currentTime={currentTime} />
+              <Highlights
+                data={celestialData}
+                currentTime={celestialData.nightStart}
+              />
             </div>
-
             <div className="col-span-4">
               {moonObject && (
-                <MoonCard object={moonObject} currentTime={currentTime} />
+                <MoonCard
+                  object={moonObject}
+                  currentTime={celestialData.nightStart}
+                />
               )}
             </div>
-
             <div className="col-span-8">
               {filteredCelestialData && (
                 <CelestialObjectsList
                   data={filteredCelestialData}
-                  currentTime={currentTime}
-                  onTimeChange={handleTimeChange} // ✅ Passed function to update time
+                  currentTime={celestialTime} // ✅ TimeSlider updates only celestial objects & sky conditions
+                  onTimeChange={setCelestialTime}
                   onObjectSelect={setSelectedObject}
                 />
               )}
             </div>
-
             <div className="col-span-4">
-              <SkyConditions data={celestialData} currentTime={currentTime} />
-            </div>
+              <SkyConditions data={celestialData} currentTime={celestialTime} />
+            </div>{' '}
           </>
         )}
       </div>
