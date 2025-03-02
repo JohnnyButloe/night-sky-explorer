@@ -36,7 +36,7 @@ export default function SkyConditions({
           <div className="text-sm mt-2">
             <p>
               <strong>Light Pollution:</strong>{' '}
-              {data.weather.lightPollution || 'N/A'}
+              {data.weather.lightPollution ?? 'N/A'} / 10
             </p>
           </div>
         </div>

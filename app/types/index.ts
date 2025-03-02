@@ -33,6 +33,7 @@ export interface HourlyForecast {
 export interface WeatherData {
   currentCloudCover: number;
   currentVisibility: number;
+  lightPollution?: number; // New Light Pollution Data (1 = Dark Sky, 10 = City Lights)
   hourlyForecast: HourlyForecast[];
 }
 

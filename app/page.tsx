@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import CelestialObjectsList from './components/CelestialObjectsList';
+import CelestialObjectsList from '@/app/components/CelestialObjectsList';
 import LocationAutocomplete from './components/LocationAutocomplete';
 import Highlights from './components/Highlights';
 import SkyConditions from './components/SkyConditions';
@@ -80,7 +80,6 @@ export default function Home() {
 
         {celestialData && currentTime && (
           <>
-            {/* Highlights Component replacing TimeSlider */}
             <div className="col-span-8">
               <Highlights data={celestialData} currentTime={currentTime} />
             </div>
@@ -96,6 +95,7 @@ export default function Home() {
                 <CelestialObjectsList
                   data={filteredCelestialData}
                   currentTime={currentTime}
+                  onTimeChange={handleTimeChange} // ✅ Passed function to update time
                   onObjectSelect={setSelectedObject}
                 />
               )}

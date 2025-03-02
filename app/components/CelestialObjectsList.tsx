@@ -9,6 +9,7 @@ import type { CelestialData, CelestialObject } from '../types';
 interface CelestialObjectsListProps {
   data: CelestialData;
   currentTime: Date;
+  onTimeChange: (newTime: Date) => void;
   onObjectSelect: (object: CelestialObject | null) => void;
 }
 
@@ -27,150 +28,10 @@ function getVisibilityInfo(
   return { visible, direction };
 }
 
-function VisibilityIndicator({
-  visible,
-  altitude,
-}: {
-  visible: boolean;
-  altitude: number;
-}) {
-  if (!visible) return null;
-  const easyToSee = altitude > 50;
-
-  return (
-    <span title={easyToSee ? 'Easily visible' : 'Visible'} className="ml-1">
-      {easyToSee ? '🔭' : '👁️'}
-    </span>
-  );
-}
-
-function CelestialObjectCard({
-  object,
-  currentTime,
-  weather,
-  isFavorite,
-  onToggleFavorite,
-  onSelect,
-}: {
-  object: CelestialObject;
-  currentTime: Date;
-  weather: CelestialData['weather'];
-  isFavorite: boolean;
-  onToggleFavorite: (objectName: string) => void;
-  onSelect: (object: CelestialObject) => void;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const currentHourData =
-    object.hourlyData.find(
-      (data) => data.time.getTime() === currentTime.getTime(),
-    ) || object.hourlyData[0];
-  const { visible, direction } = getVisibilityInfo(
-    currentHourData.altitude,
-    currentHourData.azimuth,
-  );
-
-  const isBestViewing =
-    object.additionalInfo.bestViewingTime &&
-    Math.abs(
-      object.additionalInfo.bestViewingTime.getTime() - currentTime.getTime(),
-    ) <
-      30 * 60 * 1000; // within 30 minutes
-
-  const cloudCoverAtTime =
-    weather.hourlyForecast.find(
-      (forecast) => new Date(forecast.time).getTime() === currentTime.getTime(),
-    )?.cloudCover || weather.currentCloudCover;
-
-  const isGoodViewing =
-    visible && currentHourData.altitude > 30 && cloudCoverAtTime < 50;
-
-  return (
-    <Card
-      className={`mb-2 bg-card/50 backdrop-blur-sm ${isBestViewing ? 'border border-yellow-400' : ''}`}
-    >
-      <CardContent className="p-3">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="font-semibold text-sm flex items-center">
-              {object.name} ({object.type})
-              <VisibilityIndicator
-                visible={visible}
-                altitude={currentHourData.altitude}
-              />
-              <button
-                onClick={() => onToggleFavorite(object.name)}
-                className="ml-2 focus:outline-none"
-              >
-                <Star
-                  className={`w-4 h-4 ${isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
-                />
-              </button>
-            </h3>
-            <p className="text-xs text-gray-600">
-              Alt: {currentHourData.altitude.toFixed(1)}°, Az:{' '}
-              {currentHourData.azimuth.toFixed(1)}°
-            </p>
-          </div>
-          <div className="text-right text-xs">
-            {visible ? (
-              <p className="text-green-600 font-medium">Visible</p>
-            ) : (
-              <p className="text-red-600 font-medium">Not visible</p>
-            )}
-            {visible && <p>{direction}</p>}
-            <p className="text-blue-500">
-              Best Time:{' '}
-              {object.additionalInfo.bestViewingTime?.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
-          </div>
-        </div>
-        {isGoodViewing && (
-          <p className="mt-1 text-xs text-green-600">Good viewing conditions</p>
-        )}
-        <div className="flex justify-between items-center mt-1">
-          <button
-            className="flex items-center text-xs text-blue-600 hover:text-blue-800"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="w-3 h-3 mr-1" />
-                Hide Details
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-3 h-3 mr-1" />
-                Show Details
-              </>
-            )}
-          </button>
-          <button
-            className="text-xs text-blue-600 hover:text-blue-800"
-            onClick={() => onSelect(object)}
-          >
-            Show Best Time
-          </button>
-        </div>
-        {isExpanded && (
-          <div className="mt-2 p-2 bg-secondary/30 rounded-md text-xs">
-            <p>Rise: {object.additionalInfo.riseDirection}</p>
-            <p>Max Alt: {object.additionalInfo.maxAltitude.toFixed(1)}°</p>
-            {object.additionalInfo.phase && (
-              <p>Moon Phase: {object.additionalInfo.phase}</p>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-export default function CelestialObjectsList({
+function CelestialObjectsList({
   data,
   currentTime,
+  onTimeChange,
   onObjectSelect,
 }: CelestialObjectsListProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -197,7 +58,6 @@ export default function CelestialObjectsList({
     });
   };
 
-  // Handle case where data or data.objects is undefined
   if (!data || !data.objects || data.objects.length === 0) {
     return (
       <Card>
@@ -211,15 +71,6 @@ export default function CelestialObjectsList({
     );
   }
 
-  // Example TimeSlider integration (adjust start/end times as needed)
-  const startTime = data.nightStart; // Use nightStart from mock data
-  const endTime = data.nightEnd; // Use nightEnd from mock data
-
-  const handleTimeChange = (newTime: Date) => {
-    // Update currentTime or handle time change logic here
-    console.log('Time changed to:', newTime);
-  };
-
   return (
     <div className="space-y-4">
       <Card className="bg-card/50 backdrop-blur-sm">
@@ -228,32 +79,131 @@ export default function CelestialObjectsList({
             Celestial Objects
           </CardTitle>
         </CardHeader>
+        {/* ✅ TimeSlider Component Added Here */}
+        <CardContent>
+          <TimeSlider
+            startTime={data.nightStart}
+            endTime={data.nightEnd}
+            currentTime={currentTime}
+            onTimeChange={onTimeChange} // ✅ This updates the celestial object list dynamically
+            selectedObject={null}
+            celestialObjects={data.objects}
+          />
+        </CardContent>
+
         <CardContent className="pt-0">
           <div className="space-y-2">
-            {sortedObjects.map((object, index) => (
-              <CelestialObjectCard
-                key={object.name}
-                object={object}
-                currentTime={currentTime}
-                weather={data.weather}
-                isFavorite={favorites.has(object.name)}
-                onToggleFavorite={toggleFavorite}
-                onSelect={onObjectSelect}
-              />
-            ))}
+            {sortedObjects.map((object) => {
+              const currentHourData = object?.hourlyData?.find(
+                (data) => data.time.getTime() === currentTime.getTime(),
+              ) ||
+                object?.hourlyData?.[0] || { altitude: 0, azimuth: 0 };
+
+              const { visible, direction } = getVisibilityInfo(
+                currentHourData.altitude,
+                currentHourData.azimuth,
+              );
+
+              const isBestViewing =
+                object.additionalInfo.bestViewingTime &&
+                Math.abs(
+                  object.additionalInfo.bestViewingTime.getTime() -
+                    currentTime.getTime(),
+                ) <
+                  30 * 60 * 1000; // within 30 minutes
+
+              const cloudCoverAtTime =
+                data.weather.hourlyForecast.find(
+                  (forecast) =>
+                    new Date(forecast.time).getTime() === currentTime.getTime(),
+                )?.cloudCover ??
+                data.weather.currentCloudCover ??
+                50;
+
+              const lightPollution = data.weather.lightPollution ?? 5; // Default to 5 if missing
+
+              const isGoodViewing =
+                visible &&
+                currentHourData.altitude > 30 &&
+                cloudCoverAtTime < 50;
+
+              return (
+                <Card
+                  key={object.name}
+                  className={`mb-2 bg-card/50 backdrop-blur-sm ${
+                    isBestViewing ? 'border border-yellow-400' : ''
+                  }`}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold text-sm flex items-center">
+                          {object.name}{' '}
+                          {object.type === 'Constellation'
+                            ? '⭐'
+                            : `(${object.type})`}
+                          <button
+                            onClick={() => toggleFavorite(object.name)}
+                            className="ml-2 focus:outline-none"
+                          >
+                            <Star
+                              className={`w-4 h-4 ${
+                                favorites.has(object.name)
+                                  ? 'text-yellow-400 fill-yellow-400'
+                                  : 'text-gray-400'
+                              }`}
+                            />
+                          </button>
+                        </h3>
+                        <p className="text-xs text-gray-600">
+                          Alt: {currentHourData.altitude.toFixed(1)}°, Az:{' '}
+                          {currentHourData.azimuth.toFixed(1)}°
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Light Pollution: {lightPollution} / 10
+                        </p>
+                      </div>
+                      <div className="text-right text-xs">
+                        {visible ? (
+                          <p className="text-green-600 font-medium">Visible</p>
+                        ) : (
+                          <p className="text-red-600 font-medium">
+                            Not visible
+                          </p>
+                        )}
+                        {visible && <p>{direction}</p>}
+                        <p className="text-blue-500">
+                          Best Time:{' '}
+                          {object.additionalInfo.bestViewingTime?.toLocaleTimeString(
+                            [],
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            },
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {isGoodViewing && (
+                      <p className="mt-1 text-xs text-green-600">
+                        Good viewing conditions
+                      </p>
+                    )}
+                    <div className="flex justify-between items-center mt-1">
+                      <button className="flex items-center text-xs text-blue-600 hover:text-blue-800">
+                        <ChevronDown className="w-3 h-3 mr-1" />
+                        Show Details
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
-
-      {/* Add TimeSlider with celestialObjects */}
-      <TimeSlider
-        startTime={startTime}
-        endTime={endTime}
-        currentTime={currentTime}
-        onTimeChange={handleTimeChange}
-        selectedObject={null}
-        celestialObjects={data.objects} // Pass the celestial objects here
-      />
     </div>
   );
 }
+
+export default CelestialObjectsList;

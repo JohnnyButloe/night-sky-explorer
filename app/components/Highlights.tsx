@@ -30,10 +30,10 @@ const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
   const totalVisible = visibleObjects.length;
   const bestViewingCount = bestViewingObjects.length;
 
-  // Night Sky Score Calculation
+  // Night Sky Score Calculation (now includes light pollution)
   const cloudCover = data.weather.currentCloudCover;
-  const visibility = data.weather.currentVisibility / 10; // Normalize 1-10 scale
-  const lightPollution = data.weather.lightPollution || 5; // Default to mid-range if unavailable
+  const visibility = data.weather.currentVisibility / 10;
+  const lightPollution = data.weather.lightPollution ?? 5;
   const nightSkyScore = Math.max(
     1,
     Math.min(10, 10 - (cloudCover / 10 + lightPollution - visibility)),
