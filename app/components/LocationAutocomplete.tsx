@@ -1,116 +1,108 @@
 'use client';
 
-import type React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { getLocationSuggestions } from '../utils/api';
+import { Card, CardContent } from '@/components/ui/card';
 import type { LocationSuggestion } from '../types';
+import {
+  fetchLocationSuggestions,
+  fetchReverseGeocode,
+} from '@/services/locationService';
 
 interface LocationAutocompleteProps {
-  onLocationSelect: (latitude: number, longitude: number, time: string) => void;
+  onLocationSelect: (latitude: number, longitude: number) => void;
 }
 
 export default function LocationAutocomplete({
   onLocationSelect,
 }: LocationAutocompleteProps) {
-  const [input, setInput] = useState('');
+  const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedTime, setSelectedTime] = useState('now');
-  const autocompleteRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
 
+  // Debounced search effect
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        autocompleteRef.current &&
-        !autocompleteRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setInput(value);
-    if (value.length >= 3) {
-      const suggestions = await getLocationSuggestions(value);
-      setSuggestions(suggestions);
-      setShowSuggestions(true);
-    } else {
+    if (query.length < 3) {
       setSuggestions([]);
-      setShowSuggestions(false);
+      return;
     }
+
+    setLoading(true);
+    const timeoutId = setTimeout(async () => {
+      try {
+        const data = await fetchLocationSuggestions(query);
+        setSuggestions(data);
+      } catch (error) {
+        console.error(error);
+        setSuggestions([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [query]);
+
+  const handleSelect = (suggestion: LocationSuggestion) => {
+    onLocationSelect(parseFloat(suggestion.lat), parseFloat(suggestion.lon));
+    setQuery(suggestion.display_name);
+    setSuggestions([]);
   };
 
-  const handleSuggestionClick = (suggestion: LocationSuggestion) => {
-    setInput(suggestion.display_name);
-    setShowSuggestions(false);
-    onLocationSelect(
-      Number.parseFloat(suggestion.lat),
-      Number.parseFloat(suggestion.lon),
-      selectedTime,
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const locationData = await fetchReverseGeocode(latitude, longitude);
+          setQuery(locationData.display_name);
+          onLocationSelect(latitude, longitude);
+        } catch (error) {
+          console.error(error);
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        alert('Could not get your location. Please allow access.');
+      },
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (suggestions.length > 0) {
-      const firstSuggestion = suggestions[0];
-      handleSuggestionClick(firstSuggestion);
-    }
-  };
-
   return (
-    <div ref={autocompleteRef} className="relative">
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <div className="flex space-x-2">
-          <Input
-            type="text"
-            value={input}
-            onChange={handleInputChange}
-            placeholder="Enter city or country"
-            className="flex-grow"
-          />
-          <Select value={selectedTime} onValueChange={setSelectedTime}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select time" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="now">Now</SelectItem>
-              <SelectItem value="tonight">Tonight (9 PM)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="submit" className="w-full">
-          Explore
+    <div className="relative w-full">
+      <div className="flex gap-2 mb-2">
+        <Input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search for a location..."
+          className="bg-gray-800 text-white border border-gray-600 rounded-md px-4 py-2 flex-1"
+        />
+        <Button onClick={handleUseMyLocation} variant="secondary">
+          Use My Location
         </Button>
-      </form>
-      {showSuggestions && suggestions.length > 0 && (
-        <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-auto">
-          {suggestions.map((suggestion, index) => (
-            <li
-              key={index}
-              className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-              onClick={() => handleSuggestionClick(suggestion)}
-            >
-              {suggestion.display_name}
-            </li>
-          ))}
-        </ul>
+      </div>
+      {loading && <p className="text-gray-400 text-sm mt-2">Searching...</p>}
+      {suggestions.length > 0 && (
+        <Card className="absolute top-full left-0 w-full bg-gray-900 border border-gray-700 shadow-lg rounded-md z-50 mt-1">
+          <CardContent className="p-2 space-y-2">
+            {suggestions.map((suggestion) => (
+              <div
+                key={suggestion.display_name}
+                onClick={() => handleSelect(suggestion)}
+                className="cursor-pointer p-2 hover:bg-gray-700 rounded-md text-white"
+              >
+                {suggestion.display_name}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

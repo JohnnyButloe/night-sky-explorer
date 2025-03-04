@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ChevronDown, ChevronUp, Star } from 'lucide-react';
-import TimeSlider from './TimeSlider';
+import { ChevronDown, Star } from 'lucide-react';
 import type { CelestialData, CelestialObject } from '../types';
+import CelestialGraph from '@/app/components/CelestialGraph';
 
 interface CelestialObjectsListProps {
   data: CelestialData;
@@ -13,39 +13,44 @@ interface CelestialObjectsListProps {
   onObjectSelect: (object: CelestialObject | null) => void;
 }
 
-function getVisibilityInfo(
-  altitude: number,
-  azimuth: number,
-): { visible: boolean; direction: string } {
+// Helper to determine visibility and direction.
+function getVisibilityInfo(altitude: number, azimuth: number) {
   const visible = altitude > 0;
   let direction = '';
-
   if (azimuth >= 315 || azimuth < 45) direction = 'North';
   else if (azimuth >= 45 && azimuth < 135) direction = 'East';
   else if (azimuth >= 135 && azimuth < 225) direction = 'South';
   else if (azimuth >= 225 && azimuth < 315) direction = 'West';
-
   return { visible, direction };
 }
 
-function CelestialObjectsList({
+export default function CelestialObjectsList({
   data,
   currentTime,
   onTimeChange,
   onObjectSelect,
 }: CelestialObjectsListProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [sortedObjects, setSortedObjects] = useState<CelestialObject[]>([]);
 
-  useEffect(() => {
-    const sorted = [...data.objects].sort((a, b) => {
-      if (favorites.has(a.name) && !favorites.has(b.name)) return -1;
-      if (!favorites.has(a.name) && favorites.has(b.name)) return 1;
+  // 1) Filter out the Moon.
+  const objectsExcludingMoon = useMemo(
+    () => data.objects.filter((obj) => obj.name !== 'Moon'),
+    [data.objects],
+  );
+
+  // 2) Sort by favorites.
+  const sortedObjects = useMemo(() => {
+    const sorted = [...objectsExcludingMoon].sort((a, b) => {
+      const aFav = favorites.has(a.name);
+      const bFav = favorites.has(b.name);
+      if (aFav && !bFav) return -1;
+      if (bFav && !aFav) return 1;
       return 0;
     });
-    setSortedObjects(sorted);
-  }, [data.objects, favorites]);
+    return sorted;
+  }, [objectsExcludingMoon, favorites]);
 
+  // Toggle favorites
   const toggleFavorite = (objectName: string) => {
     setFavorites((prev) => {
       const newFavorites = new Set(prev);
@@ -58,14 +63,18 @@ function CelestialObjectsList({
     });
   };
 
-  if (!data || !data.objects || data.objects.length === 0) {
+  if (sortedObjects.length === 0) {
     return (
-      <Card>
+      <Card className="bg-card/50 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-lg">Visible Celestial Objects</CardTitle>
+          <CardTitle className="text-lg text-primary">
+            Visible Celestial Objects
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm">No celestial objects data available.</p>
+          <p className="text-sm text-gray-300">
+            No celestial objects data available.
+          </p>
         </CardContent>
       </Card>
     );
@@ -79,25 +88,14 @@ function CelestialObjectsList({
             Celestial Objects
           </CardTitle>
         </CardHeader>
-        {/* ✅ TimeSlider Component Added Here */}
-        <CardContent>
-          <TimeSlider
-            startTime={data.nightStart}
-            endTime={data.nightEnd}
-            currentTime={currentTime}
-            onTimeChange={onTimeChange} // ✅ This updates the celestial object list dynamically
-            selectedObject={null}
-            celestialObjects={data.objects}
-          />
-        </CardContent>
-
         <CardContent className="pt-0">
           <div className="space-y-2">
             {sortedObjects.map((object) => {
-              const currentHourData = object?.hourlyData?.find(
-                (data) => data.time.getTime() === currentTime.getTime(),
+              // Get the hourly data for the currentTime
+              const currentHourData = object.hourlyData.find(
+                (d) => d.time.getTime() === currentTime.getTime(),
               ) ||
-                object?.hourlyData?.[0] || { altitude: 0, azimuth: 0 };
+                object.hourlyData[0] || { altitude: 0, azimuth: 0 };
 
               const { visible, direction } = getVisibilityInfo(
                 currentHourData.altitude,
@@ -110,7 +108,7 @@ function CelestialObjectsList({
                   object.additionalInfo.bestViewingTime.getTime() -
                     currentTime.getTime(),
                 ) <
-                  30 * 60 * 1000; // within 30 minutes
+                  30 * 60 * 1000; // within 30 min
 
               const cloudCoverAtTime =
                 data.weather.hourlyForecast.find(
@@ -120,8 +118,7 @@ function CelestialObjectsList({
                 data.weather.currentCloudCover ??
                 50;
 
-              const lightPollution = data.weather.lightPollution ?? 5; // Default to 5 if missing
-
+              const lightPollution = data.weather.lightPollution ?? 5;
               const isGoodViewing =
                 visible &&
                 currentHourData.altitude > 30 &&
@@ -135,9 +132,10 @@ function CelestialObjectsList({
                   }`}
                 >
                   <CardContent className="p-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold text-sm flex items-center">
+                    <div className="flex items-start space-x-4">
+                      {/* Left Column */}
+                      <div className="w-1/3 space-y-1">
+                        <h3 className="font-semibold text-sm flex items-center text-gray-200">
                           {object.name}{' '}
                           {object.type === 'Constellation'
                             ? '⭐'
@@ -155,24 +153,49 @@ function CelestialObjectsList({
                             />
                           </button>
                         </h3>
-                        <p className="text-xs text-gray-600">
+                        <p className="text-xs text-gray-400">
                           Alt: {currentHourData.altitude.toFixed(1)}°, Az:{' '}
                           {currentHourData.azimuth.toFixed(1)}°
                         </p>
-                        <p className="text-xs text-gray-500">
-                          Light Pollution: {lightPollution} / 10
+                        <p className="text-xs text-gray-400">
+                          LP: {lightPollution} / 10
                         </p>
+                        {isGoodViewing && (
+                          <p className="mt-1 text-xs text-green-500">
+                            Good viewing conditions
+                          </p>
+                        )}
+
+                        {/* Show Details button under the left column data */}
+                        <button className="flex items-center text-xs text-blue-400 hover:text-blue-600 mt-2">
+                          <ChevronDown className="w-3 h-3 mr-1" />
+                          Show Details
+                        </button>
                       </div>
-                      <div className="text-right text-xs">
+
+                      {/* Center: The Chart */}
+                      <div className="w-1/3 flex items-center justify-center">
+                        {object.hourlyData && (
+                          <CelestialGraph
+                            hourlyData={object.hourlyData}
+                            currentTime={currentTime}
+                          />
+                        )}
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="w-1/3 text-right text-xs space-y-1">
                         {visible ? (
-                          <p className="text-green-600 font-medium">Visible</p>
+                          <p className="text-green-500 font-medium">Visible</p>
                         ) : (
-                          <p className="text-red-600 font-medium">
+                          <p className="text-red-500 font-medium">
                             Not visible
                           </p>
                         )}
-                        {visible && <p>{direction}</p>}
-                        <p className="text-blue-500">
+                        {visible && (
+                          <p className="text-gray-300">{direction}</p>
+                        )}
+                        <p className="text-blue-400">
                           Best Time:{' '}
                           {object.additionalInfo.bestViewingTime?.toLocaleTimeString(
                             [],
@@ -184,17 +207,6 @@ function CelestialObjectsList({
                         </p>
                       </div>
                     </div>
-                    {isGoodViewing && (
-                      <p className="mt-1 text-xs text-green-600">
-                        Good viewing conditions
-                      </p>
-                    )}
-                    <div className="flex justify-between items-center mt-1">
-                      <button className="flex items-center text-xs text-blue-600 hover:text-blue-800">
-                        <ChevronDown className="w-3 h-3 mr-1" />
-                        Show Details
-                      </button>
-                    </div>
                   </CardContent>
                 </Card>
               );
@@ -205,5 +217,3 @@ function CelestialObjectsList({
     </div>
   );
 }
-
-export default CelestialObjectsList;

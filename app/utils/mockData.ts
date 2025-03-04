@@ -127,4 +127,22 @@ async function getMockCelestialData(
   };
 }
 
+export const mockLocationData = [
+  {
+    display_name: 'New York, USA',
+    lat: '40.7128',
+    lon: '-74.0060',
+  },
+  {
+    display_name: 'London, UK',
+    lat: '51.5074',
+    lon: '-0.1278',
+  },
+  {
+    display_name: 'Tokyo, Japan',
+    lat: '35.6895',
+    lon: '139.6917',
+  },
+];
+
 export { getMockCelestialData };
