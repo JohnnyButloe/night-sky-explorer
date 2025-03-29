@@ -1,0 +1,38 @@
+name: CI
+
+# Trigger the workflow on push or pull request events
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the code
+      - uses: actions/checkout@v3
+
+      # Setup Node.js (adjust the version as needed)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # Install dependencies
+      - name: Install Dependencies
+        run: npm install
+
+      # Run lint (if you have linting configured)
+      - name: Lint Code
+        run: npm run lint
+
+      # Run tests (using Jest, React Testing Library, or similar)
+      - name: Run Tests
+        run: npm run test
+
+      # Build the application (optional if you want to check for build errors)
+      - name: Build App
+        run: npm run build
