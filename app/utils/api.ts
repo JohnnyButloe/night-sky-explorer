@@ -1,54 +1,59 @@
-import type { CelestialData, LocationSuggestion, WeatherData } from '../types';
-import { getMockCelestialData } from './mockData';
-import { getRealCelestialData } from './realData';
+import type {
+  LocationSuggestion,
+  WeatherData,
+  CelestialData,
+} from '@/app/types';
 
-// Toggle this to switch between mock and real API
-const USE_MOCK_API = true;
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export async function getCelestialData(
-  latitude: number,
-  longitude: number,
-  time: string,
-): Promise<CelestialData> {
-  return USE_MOCK_API
-    ? getMockCelestialData(latitude, longitude, time)
-    : getRealCelestialData(latitude, longitude, time);
-}
-
-export async function getLocationSuggestions(
-  query: string,
-): Promise<LocationSuggestion[]> {
-  return USE_MOCK_API
-    ? getMockLocationSuggestions(query)
-    : getRealLocationSuggestions(query);
-}
-
-async function getMockLocationSuggestions(
-  query: string,
-): Promise<LocationSuggestion[]> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return [
-    { display_name: 'New York, USA', lat: '40.7128', lon: '-74.0060' },
-    { display_name: 'London, UK', lat: '51.5074', lon: '-0.1278' },
-    { display_name: 'Tokyo, Japan', lat: '35.6762', lon: '139.6503' },
-  ];
-}
-
-async function getRealLocationSuggestions(
+export async function fetchLocationSuggestions(
   query: string,
 ): Promise<LocationSuggestion[]> {
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1`,
+    `${BASE_URL}/locations?q=${encodeURIComponent(query)}`,
   );
   if (!response.ok) {
     throw new Error('Failed to fetch location suggestions');
   }
-  const data: any[] = await response.json();
-  return data
-    .filter((item) => item.type === 'city' || item.type === 'administrative')
-    .map((item) => ({
-      display_name: `${item.address.city || item.address.town || item.address.village || item.address.state || ''}, ${item.address.country}`,
-      lat: item.lat,
-      lon: item.lon,
-    }));
+  return response.json();
+}
+
+export async function fetchReverseGeocode(
+  latitude: number,
+  longitude: number,
+): Promise<LocationSuggestion> {
+  const response = await fetch(
+    `${BASE_URL}/locations/reverse?lat=${latitude}&lon=${longitude}`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch reverse geocode data');
+  }
+  return response.json();
+}
+
+export async function fetchCelestialData(
+  latitude: number,
+  longitude: number,
+  date: string,
+): Promise<CelestialData> {
+  const response = await fetch(
+    `${BASE_URL}/celestial?lat=${latitude}&lon=${longitude}&date=${date}`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch celestial data');
+  }
+  return response.json();
+}
+
+export async function fetchWeatherData(
+  latitude: number,
+  longitude: number,
+): Promise<WeatherData> {
+  const response = await fetch(
+    `${BASE_URL}/weather?lat=${latitude}&lon=${longitude}`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch weather data');
+  }
+  return response.json();
 }

@@ -11,9 +11,9 @@ import {
 import type { CelestialObject } from '../types';
 
 interface TimeSliderProps {
-  startTime: Date;
-  endTime: Date;
-  currentTime: Date;
+  startTime: Date | string;
+  endTime: Date | string;
+  currentTime: Date | string;
   onTimeChange: (newTime: Date) => void;
   selectedObject: CelestialObject | null;
   celestialObjects?: CelestialObject[];
@@ -27,14 +27,19 @@ export default function TimeSlider({
   selectedObject,
   celestialObjects = [],
 }: TimeSliderProps) {
-  const totalMinutes = (endTime.getTime() - startTime.getTime()) / (60 * 1000);
+  // Convert props to Date objects if they aren't already
+  const startDate = new Date(startTime);
+  const endDate = new Date(endTime);
+  const currentDate = new Date(currentTime);
+
+  const totalMinutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
   const currentMinutes =
-    (currentTime.getTime() - startTime.getTime()) / (60 * 1000);
+    (currentDate.getTime() - startDate.getTime()) / (60 * 1000);
 
   const handleSliderChange = (value: number[]) => {
     const newMinutes = value[0];
-    const newTime = new Date(startTime.getTime() + newMinutes * 60 * 1000);
-    onTimeChange(newTime); // ✅ Ensures time updates celestial objects
+    const newTime = new Date(startDate.getTime() + newMinutes * 60 * 1000);
+    onTimeChange(newTime);
   };
 
   return (
@@ -48,22 +53,21 @@ export default function TimeSlider({
           onValueChange={handleSliderChange}
           className="w-full h-2 bg-gray-800 rounded-full cursor-pointer"
         />
-
         <div className="flex justify-between text-xs text-gray-400">
           <span>
-            {startTime.toLocaleTimeString([], {
+            {startDate.toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })}
           </span>
           <span>
-            {currentTime.toLocaleTimeString([], {
+            {currentDate.toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })}
           </span>
           <span>
-            {endTime.toLocaleTimeString([], {
+            {endDate.toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })}

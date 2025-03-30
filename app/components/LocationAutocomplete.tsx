@@ -4,11 +4,8 @@ import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import type { LocationSuggestion } from '../types';
-import {
-  fetchLocationSuggestions,
-  fetchReverseGeocode,
-} from '@/services/locationService';
+import { fetchLocationSuggestions, fetchReverseGeocode } from '@/app/utils/api';
+import type { LocationSuggestion } from '@/app/types';
 
 interface LocationAutocompleteProps {
   onLocationSelect: (latitude: number, longitude: number) => void;

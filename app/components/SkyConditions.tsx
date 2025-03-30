@@ -1,9 +1,20 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Sun, Sunrise, Eye, Cloud } from 'lucide-react';
-import type { CelestialData } from '../types';
 
 interface SkyConditionsProps {
-  data: CelestialData;
+  data: {
+    location: {
+      latitude: number;
+      longitude: number;
+    };
+    sunset: string;
+    sunrise: string;
+    weather: {
+      lightPollution?: number;
+      currentVisibility: number;
+      currentCloudCover: number;
+    };
+  };
   currentTime: Date;
 }
 

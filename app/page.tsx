@@ -9,7 +9,7 @@ import MoonCard from './components/MoonCard';
 import CelestialObjectsList from './components/CelestialObjectsList';
 import SkyConditions from './components/SkyConditions';
 import TimeSlider from './components/TimeSlider';
-import { getCelestialData } from './utils/api';
+import { fetchCelestialData, fetchWeatherData } from './utils/api';
 import type { CelestialData, CelestialObject } from './types';
 
 export default function Home() {
@@ -20,31 +20,34 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // This state is used for the dynamic time from the TimeSlider.
   const [celestialTime, setCelestialTime] = useState<Date | null>(null);
-  const [selectedObject, setSelectedObject] = useState<CelestialObject | null>(
-    null,
-  );
 
   const handleLocationSelect = async (latitude: number, longitude: number) => {
     if (!selectedDate) return;
     setLoading(true);
     try {
       const formattedDate = selectedDate.toISOString().split('T')[0];
-      const data = await getCelestialData(latitude, longitude, formattedDate);
+      // Fetch celestial data using the updated function name
+      const data = await fetchCelestialData(latitude, longitude, formattedDate);
+      // Fetch weather data
+      const weatherData = await fetchWeatherData(latitude, longitude);
+      // Merge weather data into celestialData
+      data.weather = {
+        temperature: weatherData.temperature,
+        conditions: weatherData.conditions,
+        currentCloudCover: weatherData.currentCloudCover,
+        // Provide defaults for missing fields expected by SkyConditions
+        currentVisibility: data.weather.currentVisibility || 10000,
+        lightPollution: data.weather.lightPollution || 5,
+        hourlyForecast: data.weather.hourlyForecast || [],
+      };
       setCelestialData(data);
       // Set the initial dynamic time to the night's start.
       setCelestialTime(data.nightStart);
     } catch (error) {
-      console.error('Error fetching celestial data:', error);
+      console.error('Error fetching celestial or weather data:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleEditLocation = () => {
-    setCelestialData(null);
-    setCelestialTime(null);
-    setSelectedObject(null);
-    setSelectedDate(null);
   };
 
   // Compute the Moon object for MoonCard display
@@ -119,7 +122,10 @@ export default function Home() {
                 data={celestialData}
                 currentTime={celestialTime}
                 onTimeChange={setCelestialTime}
-                onObjectSelect={setSelectedObject}
+                onObjectSelect={(object) => {
+                  // Handle object selection here (for now, just log it)
+                  console.log('Selected object:', object);
+                }}
               />
             </div>
             <div className="col-span-4">

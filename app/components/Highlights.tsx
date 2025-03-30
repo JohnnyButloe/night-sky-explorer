@@ -9,10 +9,11 @@ interface HighlightsProps {
 
 const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
   const visibleObjects = data.objects.filter((obj) =>
-    obj.hourlyData.some(
-      (hour) =>
-        hour.time.getTime() === currentTime.getTime() && hour.altitude > 0,
-    ),
+    obj.hourlyData.some((hour) => {
+      const hourTime = new Date(hour.time).getTime();
+      const currentTimeMs = new Date(currentTime).getTime();
+      return hourTime === currentTimeMs && hour.altitude > 0;
+    }),
   );
 
   const bestViewingObjects = visibleObjects.filter(

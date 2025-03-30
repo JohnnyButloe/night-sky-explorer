@@ -27,8 +27,6 @@ function getVisibilityInfo(altitude: number, azimuth: number) {
 export default function CelestialObjectsList({
   data,
   currentTime,
-  onTimeChange,
-  onObjectSelect,
 }: CelestialObjectsListProps) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
@@ -92,10 +90,12 @@ export default function CelestialObjectsList({
           <div className="space-y-2">
             {sortedObjects.map((object) => {
               // Get the hourly data for the currentTime
-              const currentHourData = object.hourlyData.find(
-                (d) => d.time.getTime() === currentTime.getTime(),
-              ) ||
-                object.hourlyData[0] || { altitude: 0, azimuth: 0 };
+              const currentHourData =
+                object.hourlyData.find(
+                  (d) =>
+                    new Date(d.time).getTime() ===
+                    new Date(currentTime).getTime(),
+                ) || object.hourlyData[0];
 
               const { visible, direction } = getVisibilityInfo(
                 currentHourData.altitude,
