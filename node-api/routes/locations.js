@@ -1,3 +1,5 @@
+// locations.js
+
 import express from 'express';
 import fetch from 'node-fetch';
 import { mockLocationData } from '../mockData.js';
@@ -8,21 +10,23 @@ const router = express.Router();
 // GET /api/locations/search?q=...
 router.get('/search', async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, limit } = req.query;
     if (!q) {
       return res.status(400).json({ error: 'Missing query parameter "q".' });
     }
 
-    // If using mock mode
+    // If using mock mode, filter and limit the mock data.
     if (process.env.USE_MOCKS === 'true') {
-      const filtered = mockLocationData.filter((loc) =>
-        loc.display_name.toLowerCase().includes(q.toLowerCase()),
-      );
+      const filtered = mockLocationData
+        .filter((loc) =>
+          loc.display_name.toLowerCase().includes(q.toLowerCase()),
+        )
+        .slice(0, limit ? parseInt(limit) : 5);
       return res.json(filtered);
     }
 
-    // Otherwise call real location API (Nominatim)
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`;
+    // Call the real location API (Nominatim) with a limit parameter.
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=${limit || 5}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch location data');
@@ -45,7 +49,8 @@ router.get('/reverse', async (req, res) => {
         .json({ error: 'Missing query parameters "lat" and/or "lon".' });
     }
 
-    if (process.env.USE_MOCKS === 'true') {
+    // Return mock data if USE_MOCKS is enabled.
+    if (process.env.USE_MOCKS === 'false') {
       return res.json({
         display_name: 'Mock City, Mock State, Mock Country',
         lat,

@@ -1,23 +1,23 @@
 'use client';
 
 import React from 'react';
-import DatePicker from 'react-datepicker';
+import ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 interface DatePickerProps {
   selected: Date | null;
   onChange: (date: Date | null) => void;
-  className?: string; // Added property
+  className?: string;
 }
 
-export default function CustomDatePicker({
+export default function DatePicker({
   selected,
   onChange,
   className,
 }: DatePickerProps) {
   return (
     <div className="relative">
-      <DatePicker
+      <ReactDatePicker
         selected={selected}
         onChange={onChange}
         dateFormat="yyyy-MM-dd"
