@@ -68,11 +68,6 @@ export default function Home() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <DatePicker
-              selected={selectedDate}
-              onChange={setSelectedDate}
-              className="mb-4"
-            />
             <LocationAutocomplete onLocationSelect={handleLocationSelect} />
           </CardContent>
         </Card>
