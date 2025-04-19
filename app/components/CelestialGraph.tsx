@@ -1,3 +1,4 @@
+// app/components/CelestialGraph.tsx
 'use client';
 
 import { Line } from 'react-chartjs-2';
@@ -10,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { parseDate } from '@/app/utils/dateUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -21,31 +23,36 @@ ChartJS.register(
 );
 
 interface HourlyData {
-  time: Date;
+  time: Date | string; // allow strings from the API
   altitude: number;
   azimuth: number;
 }
 
 interface CelestialGraphProps {
   hourlyData: HourlyData[];
-  currentTime: Date;
+  currentTime: Date | string;
 }
 
 export default function CelestialGraph({
   hourlyData,
   currentTime,
 }: CelestialGraphProps) {
-  // Convert each hour’s altitude into a data point (index-based).
-  const altitudeData = hourlyData.map((data) => data.altitude);
+  // Normalize currentTime to a Date
+  const currentDate =
+    currentTime instanceof Date ? currentTime : parseDate(currentTime);
 
-  // Find the index corresponding to currentTime.
-  const currentIndex = hourlyData.findIndex(
-    (d) => d.time.getTime() === currentTime.getTime(),
-  );
-  // If no exact match, fallback to 0.
+  // Build an array of just the altitudes
+  const altitudeData = hourlyData.map((point) => point.altitude);
+
+  // Find the index matching currentDate
+  const currentIndex = hourlyData.findIndex((d) => {
+    const t = d.time instanceof Date ? d.time : parseDate(d.time);
+    return t.getTime() === currentDate.getTime();
+  });
+
   const fallbackIndex = currentIndex >= 0 ? currentIndex : 0;
 
-  // Highlight dataset: single point at the current index.
+  // Highlight only that one point
   const highlightData = altitudeData.map((val, i) =>
     i === fallbackIndex ? val : null,
   );
@@ -54,7 +61,6 @@ export default function CelestialGraph({
     labels: altitudeData.map((_, i) => i.toString()),
     datasets: [
       {
-        // Main altitude line
         data: altitudeData,
         borderColor: '#ffffff',
         backgroundColor: 'transparent',
@@ -64,7 +70,6 @@ export default function CelestialGraph({
         pointRadius: 0,
       },
       {
-        // Single point representing the current time
         data: highlightData,
         borderColor: 'transparent',
         backgroundColor: '#ffcc00',
@@ -87,7 +92,7 @@ export default function CelestialGraph({
       y: {
         display: false,
         min: 0,
-        max: 90, // altitude range
+        max: 90,
       },
     },
   };

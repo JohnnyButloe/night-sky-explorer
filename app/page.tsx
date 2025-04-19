@@ -13,45 +13,138 @@ import { fetchCelestialData, fetchWeatherData } from './utils/api';
 import type { CelestialData, CelestialObject } from './types';
 
 export default function Home() {
+  // --- State ---
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    displayName: string;
+  } | null>(null);
+
   const [celestialData, setCelestialData] = useState<CelestialData | null>(
     null,
   );
   const [loading, setLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  // This state is used for the dynamic time from the TimeSlider.
-  const [celestialTime, setCelestialTime] = useState<Date | null>(null);
 
-  const handleLocationSelect = async (latitude: number, longitude: number) => {
-    if (!selectedDate) return;
+  // Unified date & time state
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [celestialTime, setCelestialTime] = useState<Date>(new Date());
+
+  // Collapse/expand the location search UI
+  const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
+
+  // --- Data fetching helper ---
+  const fetchData = async (
+    lat: number,
+    lon: number,
+    date: Date,
+    initialTime?: Date,
+  ) => {
     setLoading(true);
     try {
-      const formattedDate = selectedDate.toISOString().split('T')[0];
-      // Fetch celestial data using the updated function name
-      const data = await fetchCelestialData(latitude, longitude, formattedDate);
-      // Fetch weather data
-      const weatherData = await fetchWeatherData(latitude, longitude);
-      // Merge weather data into celestialData
+      // Format date for the celestial API (YYYY-MM-DD)
+      const isoDate = date.toISOString().split('T')[0];
+      const data = await fetchCelestialData(lat, lon, isoDate);
+      const weather = await fetchWeatherData(lat, lon);
+
       data.weather = {
-        temperature: weatherData.temperature,
-        conditions: weatherData.conditions,
-        currentCloudCover: weatherData.currentCloudCover,
-        // Provide defaults for missing fields expected by SkyConditions
-        currentVisibility: data.weather.currentVisibility || 10000,
-        lightPollution: data.weather.lightPollution || 5,
-        hourlyForecast: data.weather.hourlyForecast || [],
+        temperature: weather.temperature,
+        conditions: weather.conditions,
+        currentCloudCover: weather.currentCloudCover,
+        currentVisibility: weather.currentVisibility,
+        lightPollution: weather.lightPollution,
+        hourlyForecast: weather.hourlyForecast,
       };
+
       setCelestialData(data);
-      // Set the initial dynamic time to the night's start.
-      setCelestialTime(data.nightStart);
-    } catch (error) {
-      console.error('Error fetching celestial or weather data:', error);
+
+      // Default the slider time to the passed-in initialTime (or now)
+      setCelestialTime(initialTime ?? new Date());
+    } catch (err) {
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Compute the Moon object for MoonCard display
-  const moonObject = celestialData?.objects.find((obj) => obj.name === 'Moon');
+  // --- Handlers ---
+
+  const handleLocationSelect = (
+    latitude: number,
+    longitude: number,
+    displayName: string,
+  ) => {
+    // 1. Save location & collapse search
+    setLocation({ latitude, longitude, displayName });
+    setIsSearchCollapsed(true);
+
+    // 2. Default date/time to now
+    const now = new Date();
+    setSelectedDate(now);
+    // fetch & default slider to now
+    fetchData(latitude, longitude, now, now);
+  };
+
+  const handleDateChange = (date: Date | null) => {
+    if (!date || !location) {
+      date && setSelectedDate(date);
+      return;
+    }
+    // 1. Update date
+    setSelectedDate(date);
+
+    // 2. Re-fetch data for the new date, preserve current time on the slider
+    fetchData(location.latitude, location.longitude, date, celestialTime);
+  };
+
+  const handleTimeChange = (time: Date) => {
+    setCelestialTime(time);
+  };
+
+  const handleChangeLocation = () => {
+    setIsSearchCollapsed(false);
+    setCelestialData(null);
+    setLocation(null);
+  };
+
+  // --- Render helpers ---
+
+  const renderSearchSection = () => {
+    if (!isSearchCollapsed) {
+      return (
+        <Card className="w-full max-w-3xl mb-4 bg-card/50 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-primary">
+              Enter Your Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LocationAutocomplete onLocationSelect={handleLocationSelect} />
+          </CardContent>
+        </Card>
+      );
+    } else {
+      return (
+        <Card className="w-full max-w-3xl mb-4 bg-card/50 backdrop-blur-sm">
+          <CardContent>
+            <div className="flex justify-between items-center">
+              <span className="font-medium">{location?.displayName}</span>
+              <button
+                onClick={handleChangeLocation}
+                className="text-blue-500 underline text-sm"
+              >
+                Change Location
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+  };
+
+  const moonObject =
+    celestialData?.objects.find((obj) => obj.name === 'Moon') ?? null;
+
+  // --- Main render ---
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-start p-4 md:p-6">
@@ -59,68 +152,56 @@ export default function Home() {
         Night Sky Explorer
       </h1>
 
-      {/* Input form if no celestial data */}
-      {!celestialData && (
-        <Card className="w-full max-w-3xl mb-4 bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-primary">
-              Enter Your Location and Date
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LocationAutocomplete onLocationSelect={handleLocationSelect} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Location Section */}
+      {renderSearchSection()}
 
+      {/* Loading Indicator */}
       {loading && (
         <p className="text-center text-primary mb-4">
           Loading celestial data...
         </p>
       )}
 
-      {/* Dashboard: Only shown if data is fetched */}
-      {celestialData && celestialTime && !loading && (
-        <div className="w-full max-w-7xl space-y-4">
-          {/* Top Section: Highlights and MoonCard (using fixed night's start time) */}
+      {/* Dashboard */}
+      {celestialData && !loading && (
+        <div className="w-full max-w-7xl space-y-6">
+          {/* Unified Date & Time Controls */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="w-1/3 min-w-[200px]">
+              <DatePicker selected={selectedDate} onChange={handleDateChange} />
+            </div>
+            <div className="flex-1">
+              <TimeSlider
+                startTime={celestialData.nightStart}
+                endTime={celestialData.nightEnd}
+                currentTime={celestialTime}
+                onTimeChange={handleTimeChange}
+                selectedObject={null}
+                celestialObjects={celestialData.objects}
+              />
+            </div>
+          </div>
+
+          {/* Top Section: Highlights & MoonCard */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              <Highlights
-                data={celestialData}
-                currentTime={celestialData.nightStart}
-              />
+              <Highlights data={celestialData} currentTime={celestialTime} />
             </div>
             <div className="col-span-4">
               {moonObject && (
-                <MoonCard
-                  object={moonObject}
-                  currentTime={celestialData.nightStart}
-                />
+                <MoonCard object={moonObject} currentTime={celestialTime} />
               )}
             </div>
           </div>
 
-          {/* Time Slider: Affects only CelestialObjectsList and SkyConditions */}
-          <TimeSlider
-            startTime={celestialData.nightStart}
-            endTime={celestialData.nightEnd}
-            currentTime={celestialTime}
-            onTimeChange={setCelestialTime}
-            selectedObject={null}
-            celestialObjects={celestialData.objects}
-          />
-
-          {/* Bottom Section: Celestial Objects List and Sky Conditions */}
+          {/* Objects List & Sky Conditions */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
               <CelestialObjectsList
                 data={celestialData}
                 currentTime={celestialTime}
                 onTimeChange={setCelestialTime}
-                onObjectSelect={(object) => {
-                  // Handle object selection here (for now, just log it)
-                  console.log('Selected object:', object);
-                }}
+                onObjectSelect={() => {}}
               />
             </div>
             <div className="col-span-4">

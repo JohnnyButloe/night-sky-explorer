@@ -6,13 +6,18 @@ import { mockCelestialData } from '../mockData.js';
 const router = express.Router();
 
 router.get('/', async (req, res) => {
+  const { lat, lon, time } = req.query;
   try {
-    const { lat, lon } = req.query;
-    if (!lat || !lon) {
-      return res
-        .status(400)
-        .json({ error: 'Missing lat/lon query parameters.' });
-    }
+    const pythonUrl = `${process.env.PYTHON_MS_URL}/calculate?lat=${lat}&lon=${lon}&time=${encodeURIComponent(time)}`;
+    const resp = await fetch(pythonUrl, { timeout: 5000 });
+    if (!resp.ok) throw new Error(`Python service error: ${resp.status}`);
+    const data = await resp.json();
+    return res.json(data);
+  } catch (err) {
+    console.error('[Celestial Proxy]', err);
+    res.status(502).json({ error: 'Failed to fetch celestial data.' });
+  }
+});
 
     // Build a unique cache key
     const cacheKey = `celestial:${lat}:${lon}`;

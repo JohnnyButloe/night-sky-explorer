@@ -1,95 +1,151 @@
-// Uncomment and adjust the following line if you have defined these types in your project
-// import type { LocationSuggestion, CelestialData, WeatherData } from '@/app/types';
+import type {
+  LocationSuggestion,
+  WeatherData,
+  CelestialData,
+} from '@/app/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
-export async function fetchLocationSuggestions(query: string): Promise<any> {
+// Helper for logging API calls
+function logApiCall(endpoint: string, params: Record<string, any>) {
+  console.log(`API Call to: ${endpoint}`, params);
+}
+
+// Helper for handling API errors with more detail
+function handleApiError(endpoint: string, error: any, status?: number): never {
+  console.error(`API Error from ${endpoint}:`, {
+    status,
+    message: error.message,
+    error,
+  });
+  throw new Error(
+    `Failed to fetch from ${endpoint}: ${
+      status ? `Status ${status}` : ''
+    } ${error.message}`,
+  );
+}
+
+/**
+ * Fetch location search suggestions.
+ */
+export async function fetchLocationSuggestions(
+  query: string,
+): Promise<LocationSuggestion[]> {
+  const endpoint = `/locations/search?q=${encodeURIComponent(query)}&limit=5`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { query });
+
   try {
-    // First attempt: full query
-    const response = await fetch(
-      `${API_BASE_URL}/locations/search?q=${encodeURIComponent(query)}&limit=5`,
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch location suggestions: ${response.status} ${response.statusText}`,
-      );
-    }
-    const data = await response.json();
+    const response = await fetch(url);
 
-    // Fallback: if no results and query contains multiple words, try using just the first word
-    if (Array.isArray(data) && data.length === 0 && query.includes(' ')) {
-      const fallbackQuery = query.split(' ')[0];
-      const fallbackResponse = await fetch(
-        `${API_BASE_URL}/locations/search?q=${encodeURIComponent(fallbackQuery)}&limit=5`,
-      );
-      if (!fallbackResponse.ok) {
-        throw new Error(
-          `Failed to fetch fallback location suggestions: ${fallbackResponse.status} ${fallbackResponse.statusText}`,
-        );
+    if (!response.ok) {
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* ignore JSON parse errors */
       }
-      return await fallbackResponse.json();
+      throw new Error(errorText);
     }
+
+    const data = await response.json();
     return data;
-  } catch (error) {
-    console.error('Error in fetchLocationSuggestions:', error);
-    throw error;
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
   }
 }
 
+/**
+ * Reverse‑geocode a pair of coordinates into a place name.
+ */
 export async function fetchReverseGeocode(
-  lat: number,
-  lon: number,
-): Promise<any> {
+  latitude: number,
+  longitude: number,
+): Promise<LocationSuggestion> {
+  const endpoint = `/locations/reverse?lat=${latitude}&lon=${longitude}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude });
+
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/locations/reverse?lat=${lat}&lon=${lon}`,
-    );
+    const response = await fetch(url);
+
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch reverse geocode data: ${response.status} ${response.statusText}`,
-      );
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* swallow */
+      }
+      throw new Error(errorText);
     }
+
     return await response.json();
-  } catch (error) {
-    console.error('Error in fetchReverseGeocode:', error);
-    throw error;
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
   }
 }
 
+/**
+ * Fetch celestial positions & times for a given date.
+ */
 export async function fetchCelestialData(
-  lat: number,
-  lon: number,
+  latitude: number,
+  longitude: number,
   date: string,
-): Promise<any> {
+): Promise<CelestialData> {
+  const endpoint = `/celestial?lat=${latitude}&lon=${longitude}&date=${date}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude, date });
+
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/celestial?lat=${lat}&lon=${lon}&date=${date}`,
-    );
+    const response = await fetch(url);
+
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch celestial data: ${response.status} ${response.statusText}`,
-      );
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(errorText);
     }
+
     return await response.json();
-  } catch (error) {
-    console.error('Error in fetchCelestialData:', error);
-    throw error;
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
   }
 }
 
-export async function fetchWeatherData(lat: number, lon: number): Promise<any> {
+/**
+ * Fetch current weather & forecast for a location.
+ */
+export async function fetchWeatherData(
+  latitude: number,
+  longitude: number,
+): Promise<WeatherData> {
+  const endpoint = `/weather?lat=${latitude}&lon=${longitude}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude });
+
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/weather?lat=${lat}&lon=${lon}`,
-    );
+    const response = await fetch(url);
+
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch weather data: ${response.status} ${response.statusText}`,
-      );
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* swallow */
+      }
+      throw new Error(errorText);
     }
+
     return await response.json();
-  } catch (error) {
-    console.error('Error in fetchWeatherData:', error);
-    throw error;
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
   }
 }

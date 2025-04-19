@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import DatePicker from './ui/DatePicker';
 import { fetchLocationSuggestions, fetchReverseGeocode } from '@/app/utils/api';
 import type { LocationSuggestion } from '@/app/types';
 
@@ -21,11 +20,11 @@ interface LocationAutocompleteProps {
   };
 }
 
+// Removed any references to a DatePicker
 export default function LocationAutocomplete({
   onLocationSelect,
   initialLocation,
 }: LocationAutocompleteProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [query, setQuery] = useState(initialLocation?.displayName || '');
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,14 +39,17 @@ export default function LocationAutocomplete({
           }
         : null,
     );
+
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Try to parse coordinates directly from input
   const tryParseCoordinates = (
     input: string,
   ): { lat: number; lon: number } | null => {
     const coordPattern = /^\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*$/;
     const match = input.match(coordPattern);
+
     if (match) {
       const lat = parseFloat(match[1]);
       const lon = parseFloat(match[2]);
@@ -58,6 +60,7 @@ export default function LocationAutocomplete({
     return null;
   };
 
+  // Check if it's a postal code
   const isPostalCode = (input: string): boolean => {
     const usPattern = /^\d{5}(-\d{4})?$/;
     const ukPattern = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i;
@@ -67,42 +70,49 @@ export default function LocationAutocomplete({
     );
   };
 
+  // Fetch suggestions as user types (with debounce)
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
+
     if (query.length < 2) {
       setSuggestions([]);
       return;
     }
+
     const coordsInput = tryParseCoordinates(query);
     if (coordsInput) {
       handleDirectCoordinates(coordsInput.lat, coordsInput.lon);
       return;
     }
+
     const debounceTime = isPostalCode(query) ? 100 : 300;
     debounceTimerRef.current = setTimeout(async () => {
       setLoading(true);
       setError(null);
+
       try {
         const data = await fetchLocationSuggestions(query);
-        const filteredData = Array.isArray(data)
-          ? data.filter((loc) => {
-              const lowerCaseName = loc.display_name.toLowerCase();
-              return (
-                lowerCaseName.includes('united states') ||
-                lowerCaseName.includes('usa')
-              );
-            })
-          : data;
-        setSuggestions(filteredData);
-      } catch (_error) {
-        setError('Failed to fetch suggestions');
+        // For simplicity, not filtering to "USA only" here,
+        // but you can reapply your filter if needed
+        if (!Array.isArray(data)) {
+          throw new Error(
+            `Invalid response format: ${JSON.stringify(data).substring(0, 100)}`,
+          );
+        }
+        setSuggestions(data);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error('Suggestion fetch error:', error);
+        setError(`Failed to fetch suggestions: ${errorMessage}`);
         setSuggestions([]);
       } finally {
         setLoading(false);
       }
     }, debounceTime);
+
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
@@ -114,11 +124,13 @@ export default function LocationAutocomplete({
     setLoading(true);
     setError(null);
     try {
+      // Reverse-geocode to get a display name
       const locationData = await fetchReverseGeocode(lat, lon);
       setSelectedLocation(locationData);
       setQuery(locationData.display_name);
+      onLocationSelect(lat, lon, locationData.display_name);
       setSuggestions([]);
-    } catch (_error) {
+    } catch (error) {
       const genericName = `Location (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
       const manualLocation = {
         display_name: genericName,
@@ -127,61 +139,65 @@ export default function LocationAutocomplete({
       };
       setSelectedLocation(manualLocation);
       setQuery(genericName);
+      onLocationSelect(lat, lon, genericName);
       setSuggestions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // When a suggestion is clicked, update only the search bar and hide the dropdown.
-  const handleSelect = (suggestion: LocationSuggestion) => {
-    setQuery(suggestion.display_name);
-    setSelectedLocation(suggestion);
-    setSuggestions([]);
-    inputRef.current?.blur();
-  };
-
+  // Handle manual search logic
   const handleManualSearch = async () => {
-    if (query.length < 2) return;
+    if (query.length < 2) {
+      return;
+    }
     const coordsInput = tryParseCoordinates(query);
     if (coordsInput) {
       handleDirectCoordinates(coordsInput.lat, coordsInput.lon);
       return;
     }
+
     setLoading(true);
     setError(null);
     try {
       const data = await fetchLocationSuggestions(query);
-      const filteredData = Array.isArray(data)
-        ? data.filter((loc) => {
-            const lowerCaseName = loc.display_name.toLowerCase();
-            return (
-              lowerCaseName.includes('united states') ||
-              lowerCaseName.includes('usa')
-            );
-          })
-        : data;
-      if (filteredData.length === 1) {
-        handleSelect(filteredData[0]);
-        onLocationSelect(
-          parseFloat(filteredData[0].lat),
-          parseFloat(filteredData[0].lon),
-          filteredData[0].display_name,
+      if (!Array.isArray(data)) {
+        throw new Error(
+          `Invalid response format: ${JSON.stringify(data).substring(0, 100)}`,
         );
+      }
+      if (data.length === 1) {
+        handleSelect(data[0]);
         return;
       }
-      setSuggestions(filteredData);
-      if (filteredData.length === 0) {
+      setSuggestions(data);
+      if (data.length === 0) {
         setError(
           `No locations found for "${query}". Try a city name or coordinates.`,
         );
       }
-    } catch (_error) {
-      setError('Failed to search');
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error('Manual search error:', error);
+      setError(`Failed to search: ${errorMessage}`);
       setSuggestions([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // When a suggestion is clicked
+  const handleSelect = (suggestion: LocationSuggestion) => {
+    setSelectedLocation(suggestion);
+    onLocationSelect(
+      parseFloat(suggestion.lat),
+      parseFloat(suggestion.lon),
+      suggestion.display_name,
+    );
+    setQuery(suggestion.display_name);
+    setSuggestions([]);
+    inputRef.current?.blur();
   };
 
   const handleUseMyLocation = () => {
@@ -197,7 +213,8 @@ export default function LocationAutocomplete({
           const locationData = await fetchReverseGeocode(latitude, longitude);
           setQuery(locationData.display_name);
           setSelectedLocation(locationData);
-        } catch (_error) {
+          onLocationSelect(latitude, longitude, locationData.display_name);
+        } catch (error) {
           const genericName = `My Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
           const manualLocation = {
             display_name: genericName,
@@ -206,6 +223,7 @@ export default function LocationAutocomplete({
           };
           setSelectedLocation(manualLocation);
           setQuery(genericName);
+          onLocationSelect(latitude, longitude, genericName);
         } finally {
           setLoading(false);
         }
@@ -221,6 +239,7 @@ export default function LocationAutocomplete({
     );
   };
 
+  // Handle input change
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newQuery = e.target.value;
     setQuery(newQuery);
@@ -233,6 +252,7 @@ export default function LocationAutocomplete({
     }
   };
 
+  // Handle pressing Enter in the input field
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -246,15 +266,6 @@ export default function LocationAutocomplete({
 
   return (
     <div className="relative w-full">
-      {/* DatePicker integrated from the UI folder */}
-      <div className="mb-4">
-        <DatePicker
-          selected={selectedDate}
-          onChange={setSelectedDate}
-          className="w-full"
-        />
-      </div>
-
       <div className="flex gap-2 mb-2">
         <Input
           ref={inputRef}
@@ -291,6 +302,18 @@ export default function LocationAutocomplete({
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {selectedLocation && (
+        <div className="mt-2 p-2 bg-gray-800 border border-gray-600 rounded-md">
+          <p className="text-sm text-green-400">
+            Selected: {selectedLocation.display_name}
+          </p>
+          <p className="text-xs text-gray-400">
+            Coordinates: {parseFloat(selectedLocation.lat).toFixed(4)},{' '}
+            {parseFloat(selectedLocation.lon).toFixed(4)}
+          </p>
+        </div>
       )}
     </div>
   );

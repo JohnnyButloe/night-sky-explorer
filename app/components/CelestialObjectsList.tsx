@@ -1,19 +1,20 @@
+// app/components/CelestialObjectsList.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ChevronDown, Star } from 'lucide-react';
 import type { CelestialData, CelestialObject } from '../types';
 import CelestialGraph from '@/app/components/CelestialGraph';
+import { parseDate } from '@/app/utils/dateUtils';
 
 interface CelestialObjectsListProps {
   data: CelestialData;
-  currentTime: Date;
+  currentTime: Date | string;
   onTimeChange: (newTime: Date) => void;
   onObjectSelect: (object: CelestialObject | null) => void;
 }
 
-// Helper to determine visibility and direction.
 function getVisibilityInfo(altitude: number, azimuth: number) {
   const visible = altitude > 0;
   let direction = '';
@@ -28,38 +29,39 @@ export default function CelestialObjectsList({
   data,
   currentTime,
 }: CelestialObjectsListProps) {
+  // 1) Ensure currentTime is a Date
+  const currentDate = parseDate(currentTime);
+
+  // 2) Default hourlyForecast to an array if missing
+  const hourlyForecast = data.weather.hourlyForecast ?? [];
+
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
-  // 1) Filter out the Moon.
+  // Exclude the Moon
   const objectsExcludingMoon = useMemo(
     () => data.objects.filter((obj) => obj.name !== 'Moon'),
     [data.objects],
   );
 
-  // 2) Sort by favorites.
+  // Sort favorites first
   const sortedObjects = useMemo(() => {
-    const sorted = [...objectsExcludingMoon].sort((a, b) => {
+    const list = [...objectsExcludingMoon];
+    list.sort((a, b) => {
       const aFav = favorites.has(a.name);
       const bFav = favorites.has(b.name);
       if (aFav && !bFav) return -1;
       if (bFav && !aFav) return 1;
       return 0;
     });
-    return sorted;
+    return list;
   }, [objectsExcludingMoon, favorites]);
 
-  // Toggle favorites
-  const toggleFavorite = (objectName: string) => {
+  const toggleFavorite = (name: string) =>
     setFavorites((prev) => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(objectName)) {
-        newFavorites.delete(objectName);
-      } else {
-        newFavorites.add(objectName);
-      }
-      return newFavorites;
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
     });
-  };
 
   if (sortedObjects.length === 0) {
     return (
@@ -89,31 +91,32 @@ export default function CelestialObjectsList({
         <CardContent className="pt-0">
           <div className="space-y-2">
             {sortedObjects.map((object) => {
-              // Get the hourly data for the currentTime
-              const currentHourData =
-                object.hourlyData.find(
-                  (d) =>
-                    new Date(d.time).getTime() ===
-                    new Date(currentTime).getTime(),
-                ) || object.hourlyData[0];
+              // 3) Current-hour data
+              const currentHourData = object.hourlyData.find(
+                (d) => parseDate(d.time).getTime() === currentDate.getTime(),
+              ) || { altitude: 0, azimuth: 0 };
 
+              // 4) Visibility info
               const { visible, direction } = getVisibilityInfo(
                 currentHourData.altitude,
                 currentHourData.azimuth,
               );
 
-              const isBestViewing =
-                object.additionalInfo.bestViewingTime &&
-                Math.abs(
-                  object.additionalInfo.bestViewingTime.getTime() -
-                    currentTime.getTime(),
-                ) <
-                  30 * 60 * 1000; // within 30 min
+              // 5) Best-viewing flag
+              let isBestViewing = false;
+              if (object.additionalInfo.bestViewingTime) {
+                const bestDate = parseDate(
+                  object.additionalInfo.bestViewingTime,
+                );
+                isBestViewing =
+                  Math.abs(bestDate.getTime() - currentDate.getTime()) <
+                  30 * 60 * 1000;
+              }
 
+              // 6) Cloud cover at this time
               const cloudCoverAtTime =
-                data.weather.hourlyForecast.find(
-                  (forecast) =>
-                    new Date(forecast.time).getTime() === currentTime.getTime(),
+                hourlyForecast.find(
+                  (f) => parseDate(f.time).getTime() === currentDate.getTime(),
                 )?.cloudCover ??
                 data.weather.currentCloudCover ??
                 50;
@@ -165,22 +168,18 @@ export default function CelestialObjectsList({
                             Good viewing conditions
                           </p>
                         )}
-
-                        {/* Show Details button under the left column data */}
                         <button className="flex items-center text-xs text-blue-400 hover:text-blue-600 mt-2">
                           <ChevronDown className="w-3 h-3 mr-1" />
                           Show Details
                         </button>
                       </div>
 
-                      {/* Center: The Chart */}
+                      {/* Center: Graph */}
                       <div className="w-1/3 flex items-center justify-center">
-                        {object.hourlyData && (
-                          <CelestialGraph
-                            hourlyData={object.hourlyData}
-                            currentTime={currentTime}
-                          />
-                        )}
+                        <CelestialGraph
+                          hourlyData={object.hourlyData}
+                          currentTime={currentDate}
+                        />
                       </div>
 
                       {/* Right Column */}
@@ -197,13 +196,14 @@ export default function CelestialObjectsList({
                         )}
                         <p className="text-blue-400">
                           Best Time:{' '}
-                          {object.additionalInfo.bestViewingTime?.toLocaleTimeString(
-                            [],
-                            {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            },
-                          )}
+                          {object.additionalInfo.bestViewingTime
+                            ? parseDate(
+                                object.additionalInfo.bestViewingTime,
+                              ).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : 'N/A'}
                         </p>
                       </div>
                     </div>
