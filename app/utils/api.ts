@@ -1,54 +1,151 @@
-import type { CelestialData, LocationSuggestion, WeatherData } from '../types';
-import { getMockCelestialData } from './mockData';
-import { getRealCelestialData } from './realData';
+import type {
+  LocationSuggestion,
+  WeatherData,
+  CelestialData,
+} from '@/app/types';
 
-// Toggle this to switch between mock and real API
-const USE_MOCK_API = true;
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
-export async function getCelestialData(
+// Helper for logging API calls
+function logApiCall(endpoint: string, params: Record<string, any>) {
+  console.log(`API Call to: ${endpoint}`, params);
+}
+
+// Helper for handling API errors with more detail
+function handleApiError(endpoint: string, error: any, status?: number): never {
+  console.error(`API Error from ${endpoint}:`, {
+    status,
+    message: error.message,
+    error,
+  });
+  throw new Error(
+    `Failed to fetch from ${endpoint}: ${
+      status ? `Status ${status}` : ''
+    } ${error.message}`,
+  );
+}
+
+/**
+ * Fetch location search suggestions.
+ */
+export async function fetchLocationSuggestions(
+  query: string,
+): Promise<LocationSuggestion[]> {
+  const endpoint = `/locations/search?q=${encodeURIComponent(query)}&limit=5`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { query });
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* ignore JSON parse errors */
+      }
+      throw new Error(errorText);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
+  }
+}
+
+/**
+ * Reverse‑geocode a pair of coordinates into a place name.
+ */
+export async function fetchReverseGeocode(
   latitude: number,
   longitude: number,
-  time: string,
-): Promise<CelestialData> {
-  return USE_MOCK_API
-    ? getMockCelestialData(latitude, longitude, time)
-    : getRealCelestialData(latitude, longitude, time);
-}
+): Promise<LocationSuggestion> {
+  const endpoint = `/locations/reverse?lat=${latitude}&lon=${longitude}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude });
 
-export async function getLocationSuggestions(
-  query: string,
-): Promise<LocationSuggestion[]> {
-  return USE_MOCK_API
-    ? getMockLocationSuggestions(query)
-    : getRealLocationSuggestions(query);
-}
+  try {
+    const response = await fetch(url);
 
-async function getMockLocationSuggestions(
-  query: string,
-): Promise<LocationSuggestion[]> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  return [
-    { display_name: 'New York, USA', lat: '40.7128', lon: '-74.0060' },
-    { display_name: 'London, UK', lat: '51.5074', lon: '-0.1278' },
-    { display_name: 'Tokyo, Japan', lat: '35.6762', lon: '139.6503' },
-  ];
-}
+    if (!response.ok) {
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* swallow */
+      }
+      throw new Error(errorText);
+    }
 
-async function getRealLocationSuggestions(
-  query: string,
-): Promise<LocationSuggestion[]> {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1`,
-  );
-  if (!response.ok) {
-    throw new Error('Failed to fetch location suggestions');
+    return await response.json();
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
   }
-  const data: any[] = await response.json();
-  return data
-    .filter((item) => item.type === 'city' || item.type === 'administrative')
-    .map((item) => ({
-      display_name: `${item.address.city || item.address.town || item.address.village || item.address.state || ''}, ${item.address.country}`,
-      lat: item.lat,
-      lon: item.lon,
-    }));
+}
+
+/**
+ * Fetch celestial positions & times for a given date.
+ */
+export async function fetchCelestialData(
+  latitude: number,
+  longitude: number,
+  date: string,
+): Promise<CelestialData> {
+  const endpoint = `/celestial?lat=${latitude}&lon=${longitude}&date=${date}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude, date });
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(errorText);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
+  }
+}
+
+/**
+ * Fetch current weather & forecast for a location.
+ */
+export async function fetchWeatherData(
+  latitude: number,
+  longitude: number,
+): Promise<WeatherData> {
+  const endpoint = `/weather?lat=${latitude}&lon=${longitude}`;
+  const url = `${BASE_URL}${endpoint}`;
+  logApiCall(endpoint, { latitude, longitude });
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      let errorText = response.statusText;
+      try {
+        const errJson = await response.json();
+        errorText = errJson.error || errorText;
+      } catch {
+        /* swallow */
+      }
+      throw new Error(errorText);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    return handleApiError(endpoint, err, err.status);
+  }
 }

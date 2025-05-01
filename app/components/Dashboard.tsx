@@ -10,15 +10,13 @@ interface DashboardProps {
   celestialData: CelestialData;
   currentTime: Date;
   onTimeChange: (time: Date) => void;
-  selectedObject: CelestialObject | null;
-  onObjectSelect: (obj: CelestialObject) => void;
+  onObjectSelect: (obj: CelestialObject | null) => void; // updated type to accept null
 }
 
 export default function Dashboard({
   celestialData,
   currentTime,
   onTimeChange,
-  selectedObject,
   onObjectSelect,
 }: DashboardProps) {
   const moonObject = celestialData.objects.find((obj) => obj.name === 'Moon');
