@@ -6,6 +6,23 @@ import * as astro from '../lib/astro.js';
 
 const router = express.Router();
 
+// API Key middleware that skips when mocking
+const apiKeyMiddleware = (req, res, next) => {
+  if (process.env.USE_MOCKS === 'true') return next();
+
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  const validApiKey = process.env.API_KEY || process.env.WEATHER_API_KEY;
+
+  if (!validApiKey || !apiKey || apiKey !== validApiKey) {
+    return res
+      .status(401)
+      .json({ error: 'Unauthorized: Invalid or missing API key' });
+  }
+  next();
+};
+
+router.use(apiKeyMiddleware);
+
 /**
  * GET /api/celestial
  * Query params: lat (degrees), lon (degrees), time (ISO string), zone (IANA timezone, optional)

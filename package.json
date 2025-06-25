@@ -11,6 +11,7 @@
     "dev:all": "concurrently -n FRONTEND,BACKEND,PYTHON \"npm run dev\" \"cd node-api && npm run dev\" \"cd python-microservice && uvicorn main:app --reload --port 8000\""
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.4",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",

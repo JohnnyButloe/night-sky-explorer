@@ -1,5 +1,3 @@
-# python-microservice/main.py
-
 import os
 import logging
 from fastapi import FastAPI, Query, HTTPException

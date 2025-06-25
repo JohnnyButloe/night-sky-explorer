@@ -17,7 +17,4 @@ app.use('/api/celestial', celestialRouter);
 app.use('/api/weather', weatherRouter);
 // app.use('/api/user', userRouter);
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Node.js API running on port ${PORT}`);
-});
+export default app;
