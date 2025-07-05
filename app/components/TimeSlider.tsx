@@ -1,14 +1,11 @@
+// app/components/TimeSlider.tsx
 'use client';
 
 import React from 'react';
 import { Slider } from '@/components/ui/slider';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipProvider } from '@/components/ui/tooltip';
 import type { CelestialObject } from '../types';
+import { parseDate } from '@/app/utils/dateUtils';
 
 interface TimeSliderProps {
   startTime: Date | string;
@@ -27,10 +24,10 @@ export default function TimeSlider({
   selectedObject,
   celestialObjects = [],
 }: TimeSliderProps) {
-  // Convert props to Date objects if they aren't already
-  const startDate = new Date(startTime);
-  const endDate = new Date(endTime);
-  const currentDate = new Date(currentTime);
+  // Convert incoming date props using parseDate.
+  const startDate = parseDate(startTime);
+  const endDate = parseDate(endTime);
+  const currentDate = parseDate(currentTime);
 
   const totalMinutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
   const currentMinutes =

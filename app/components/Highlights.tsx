@@ -1,29 +1,36 @@
+// app/components/Highlights.tsx
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import type { CelestialData } from '../types';
+import { parseDate } from '@/app/utils/dateUtils';
 
 interface HighlightsProps {
   data: CelestialData;
-  currentTime: Date;
+  currentTime: Date | string;
 }
 
 const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
+  // Use parseDate to ensure we have a Date object.
+  const currentDate = parseDate(currentTime);
+
+  // Filter objects that are visible at the current time
   const visibleObjects = data.objects.filter((obj) =>
     obj.hourlyData.some((hour) => {
-      const hourTime = new Date(hour.time).getTime();
-      const currentTimeMs = new Date(currentTime).getTime();
+      const hourTime = parseDate(hour.time).getTime();
+      const currentTimeMs = currentDate.getTime();
       return hourTime === currentTimeMs && hour.altitude > 0;
     }),
   );
 
-  const bestViewingObjects = visibleObjects.filter(
-    (obj) =>
-      obj.additionalInfo.bestViewingTime &&
-      Math.abs(
-        obj.additionalInfo.bestViewingTime.getTime() - currentTime.getTime(),
-      ) <
-        30 * 60 * 1000,
-  );
+  const bestViewingObjects = visibleObjects.filter((obj) => {
+    if (!obj.additionalInfo.bestViewingTime) return false;
+    const bestViewingTime = parseDate(obj.additionalInfo.bestViewingTime);
+    if (isNaN(bestViewingTime.getTime())) return false;
+    return (
+      Math.abs(bestViewingTime.getTime() - currentDate.getTime()) <
+      30 * 60 * 1000
+    );
+  });
 
   const visiblePlanets = visibleObjects
     .filter((obj) => obj.type === 'Planet')
@@ -31,7 +38,7 @@ const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
   const totalVisible = visibleObjects.length;
   const bestViewingCount = bestViewingObjects.length;
 
-  // Night Sky Score Calculation (now includes light pollution)
+  // Night Sky Score Calculation
   const cloudCover = data.weather.currentCloudCover;
   const visibility = data.weather.currentVisibility / 10;
   const lightPollution = data.weather.lightPollution ?? 5;
