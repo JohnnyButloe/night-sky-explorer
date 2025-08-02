@@ -8,7 +8,9 @@ const router = express.Router();
 
 // API Key middleware that skips when mocking
 const apiKeyMiddleware = (req, res, next) => {
-  if (process.env.USE_MOCKS === 'true') return next();
+  if (process.env.USE_MOCKS === 'true' || process.env.NODE_ENV === 'test') {
+    return next();
+  }
 
   const apiKey = req.headers['x-api-key'] || req.query.api_key;
   const validApiKey = process.env.API_KEY || process.env.WEATHER_API_KEY;

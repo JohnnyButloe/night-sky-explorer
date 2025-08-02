@@ -6,7 +6,7 @@ export default defineConfig({
     mainFields: ['module', 'main'],
   },
   test: {
-    include: ['test/locations.spec.js'], // <-- Only run the locations tests!
+    include: ['test/**/*.spec.js'],
     environment: 'node',
     globals: true,
     setupFiles: './vitest.setup.js',

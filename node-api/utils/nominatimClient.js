@@ -2,7 +2,9 @@
 
 import fetch from 'node-fetch';
 
-const BASE_URL = 'https://nominatim.openstreetmap.org';
+// Allow the base URL to be overridden (useful for tests).
+const BASE_URL =
+  process.env.GEOCODE_API_BASE || 'https://nominatim.openstreetmap.org';
 const USER_AGENT = 'NightSkyExplorer/1.0 (jbutl007@outlook.com)';
 
 // Exported function #1: Geocode address
@@ -14,7 +16,9 @@ export async function geocodeAddress(q, limit = 5) {
     headers: { 'User-Agent': USER_AGENT },
   });
   if (!res.ok) {
-    throw new Error(`Geocode failed: ${res.status}`);
+    const error = new Error(`Geocode failed: ${res.status}`);
+    error.response = { status: res.status };
+    throw error;
   }
   return res.json();
 }
@@ -33,7 +37,9 @@ export async function reverseGeocode(lat, lon) {
     headers: { 'User-Agent': USER_AGENT },
   });
   if (!res.ok) {
-    throw new Error(`Reverse geocode failed: ${res.status}`);
+    const error = new Error(`Reverse geocode failed: ${res.status}`);
+    error.response = { status: res.status };
+    throw error;
   }
   return res.json();
 }

@@ -4,7 +4,10 @@ import type {
   CelestialData,
 } from '@/app/types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+// Default to '/api' so the frontend correctly proxies requests to the backend
+// when no explicit API base URL is configured via environment variables.
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 // Helper for logging API calls
 function logApiCall(endpoint: string, params: Record<string, any>) {
@@ -95,12 +98,14 @@ export async function fetchCelestialData(
   longitude: number,
   date: string,
 ): Promise<CelestialData> {
-  const endpoint = `/celestial?lat=${latitude}&lon=${longitude}&date=${date}`;
+  const endpoint = `/celestial?lat=${latitude}&lon=${longitude}&time=${date}`;
   const url = `${BASE_URL}${endpoint}`;
   logApiCall(endpoint, { latitude, longitude, date });
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
+    });
 
     if (!response.ok) {
       let errorText = response.statusText;
@@ -131,7 +136,9 @@ export async function fetchWeatherData(
   logApiCall(endpoint, { latitude, longitude });
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
+    });
 
     if (!response.ok) {
       let errorText = response.statusText;
