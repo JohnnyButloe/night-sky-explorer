@@ -6,28 +6,20 @@
   :root {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 6.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
@@ -43,6 +35,71 @@
   }
 }
 
+@keyframes animate-twinkle {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.stars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  z-index: 0;
+  animation: animate-twinkle 10s infinite alternate;
+}
+
+.stars-sm {
+  width: 1px;
+  height: 1px;
+  background: transparent;
+  box-shadow:
+    10vw 20vh #fff,
+    40vw 15vh #fff,
+    80vw 30vh #fff,
+    5vw 80vh #fff,
+    90vw 70vh #fff;
+}
+
+.stars-md {
+  width: 2px;
+  height: 2px;
+  background: transparent;
+  box-shadow:
+    25vw 50vh #fff,
+    50vw 90vh #fff,
+    75vw 10vh #fff,
+    5vw 40vh #fff,
+    95vw 55vh #fff;
+  animation-delay: 2s;
+}
+
+.stars-lg {
+  width: 3px;
+  height: 3px;
+  background: transparent;
+  box-shadow:
+    15vw 60vh #fff,
+    60vw 80vh #fff,
+    85vw 45vh #fff;
+  animation-delay: 4s;
+}
+
 .cosmic-bg {
-  @apply bg-cosmic-gradient min-h-screen;
+  @apply min-h-screen;
+  background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+  overflow-y: auto;
+  position: relative;
 }

@@ -57,11 +57,19 @@ export interface CelestialAdditionalInfo {
 /**
  * Represents a celestial object (e.g., a star, planet, or the Moon).
  */
+interface AdditionalInfo {
+  bestViewingTime?: string | null;
+  riseTime?: string | null;
+  setTime?: string | null;
+  phase?: string | null;
+  illumination?: number | null;
+}
+
 export interface CelestialObject {
   name: string;
   type: string;
-  hourlyData: CelestialObjectHourlyData[];
-  additionalInfo: CelestialAdditionalInfo;
+  hourlyData: HourlyEntry[];
+  additionalInfo?: AdditionalInfo; // 🔑 now optional
 }
 
 /**

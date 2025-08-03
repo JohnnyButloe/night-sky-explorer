@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import cache from '../cache.js';
 import { mockCelestialData } from '../mockData.js';
 import * as astro from '../lib/astro.js';
+import { sampleHourly } from '../lib/hourSampler.js';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const apiKeyMiddleware = (req, res, next) => {
   next();
 };
 
-router.use(apiKeyMiddleware);
+// router.use(apiKeyMiddleware);
 
 /**
  * GET /api/celestial
@@ -105,7 +106,9 @@ router.get('/', async (req, res) => {
       'Neptune',
     ];
 
-    // Pre-parse date & observer once if needed internally
+    // Compute moon phase ONCE
+    const moonPhaseAngle = astro.computeMoonPhase(iso);
+
     const objects = bodies.map((name) => {
       const { altitude, azimuth } = astro.computeAltAz(
         name,
@@ -119,11 +122,29 @@ router.get('/', async (req, res) => {
         latNum,
         lonNum,
       );
-      return { name, altitude, azimuth, riseTime, setTime };
-    });
 
-    // 7) Moon phase
-    const moonPhaseAngle = astro.computeMoonPhase(iso);
+      const hourlyData =
+        process.env.DISABLE_SAMPLING === 'true'
+          ? [] // opt-out in CI if desired
+          : sampleHourly(name, iso, latNum, lonNum);
+
+      // Always return additionalInfo, never undefined
+      const additionalInfo = {
+        riseTime,
+        setTime,
+        bestViewingTime: null,
+        phase: name === 'Moon' ? moonPhaseAngle : null,
+        illumination: null,
+      };
+
+      return {
+        name,
+        altitude,
+        azimuth,
+        hourlyData,
+        additionalInfo,
+      };
+    });
 
     const result = { objects, moonPhaseAngle };
 

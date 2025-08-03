@@ -14,13 +14,13 @@ const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
   const currentDate = parseDate(currentTime);
 
   // Filter objects that are visible at the current time
-  const visibleObjects = data.objects.filter((obj) =>
-    obj.hourlyData.some((hour) => {
+  const visibleObjects = data.objects.filter((obj) => {
+    const hours = obj.hourlyData ?? []; // default to empty array
+    return hours.some((hour) => {
       const hourTime = parseDate(hour.time).getTime();
-      const currentTimeMs = currentDate.getTime();
-      return hourTime === currentTimeMs && hour.altitude > 0;
-    }),
-  );
+      return hourTime === currentDate.getTime() && hour.altitude > 0;
+    });
+  });
 
   const bestViewingObjects = visibleObjects.filter((obj) => {
     if (!obj.additionalInfo.bestViewingTime) return false;

@@ -45,6 +45,7 @@ export default function Home() {
       const isoDate = date.toISOString().split('T')[0];
       const data = await fetchCelestialData(lat, lon, isoDate);
       const weather = await fetchWeatherData(lat, lon);
+      data.location = { latitude: lat, longitude: lon };
 
       data.weather = {
         temperature: weather.temperature,
@@ -141,8 +142,17 @@ export default function Home() {
     }
   };
 
+  // Find the moon object from the raw celestial data
   const moonObject =
     celestialData?.objects.find((obj) => obj.name === 'Moon') ?? null;
+
+  // Create a new data object for the list that excludes the moon
+  const filteredCelestialData = celestialData
+    ? {
+        ...celestialData,
+        objects: celestialData.objects.filter((obj) => obj.name !== 'Moon'),
+      }
+    : null;
 
   // --- Main render ---
 
@@ -188,21 +198,22 @@ export default function Home() {
               <Highlights data={celestialData} currentTime={celestialTime} />
             </div>
             <div className="col-span-4">
-              {moonObject && (
-                <MoonCard object={moonObject} currentTime={celestialTime} />
-              )}
+              {/* Always render MoonCard, pass it the potentially null moonObject */}
+              <MoonCard object={moonObject} currentTime={celestialTime} />
             </div>
           </div>
 
           {/* Objects List & Sky Conditions */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              <CelestialObjectsList
-                data={celestialData}
-                currentTime={celestialTime}
-                onTimeChange={setCelestialTime}
-                onObjectSelect={() => {}}
-              />
+              {filteredCelestialData && (
+                <CelestialObjectsList
+                  data={filteredCelestialData}
+                  currentTime={celestialTime}
+                  onTimeChange={setCelestialTime}
+                  onObjectSelect={() => {}}
+                />
+              )}
             </div>
             <div className="col-span-4">
               <SkyConditions data={celestialData} currentTime={celestialTime} />

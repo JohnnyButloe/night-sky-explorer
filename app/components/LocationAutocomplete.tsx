@@ -89,7 +89,10 @@ export default function LocationAutocomplete({
         const data = await fetchLocationSuggestions(query);
         if (!Array.isArray(data)) {
           throw new Error(
-            `Invalid response format: ${JSON.stringify(data).substring(0, 100)}`,
+            `Invalid response format: ${JSON.stringify(data).substring(
+              0,
+              100,
+            )}`,
           );
         }
         setSuggestions(data);
@@ -220,7 +223,9 @@ export default function LocationAutocomplete({
             }),
           );
         } catch (error) {
-          const genericName = `My Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
+          const genericName = `My Location (${latitude.toFixed(
+            4,
+          )}, ${longitude.toFixed(4)})`;
           const manualLocation = {
             display_name: genericName,
             lat: latitude.toString(),
@@ -278,7 +283,7 @@ export default function LocationAutocomplete({
             Search
           </Button>
           <Button onClick={handleUseMyLocation} variant="secondary">
-            Use My Location (for local sky)
+            Use My Location
           </Button>
         </div>
 
