@@ -60,17 +60,48 @@ router.get('/', async (req, res) => {
       }));
       return res.json({ forecast });
     } else {
-      // Current weather
-      const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+      // Current weather + hourly (unified clean JSON) - backend-campatible
+      const apiUrl =
+        `https:api.open-meteo.com/v1/forecast` +
+        `?latitude=$[lat]` +
+        `&longitude=${lon}` +
+        `&current_weather=true` +
+        `&hourly=temperature_2m,precipitation,weathercode` +
+        `&timezone=auto`;
+
       const response = await fetch(apiUrl);
       if (!response.ok) throw new Error('Open-Meteo weather API error');
       const data = await response.json();
       if (!data.current_weather)
         throw new Error('No current weather data found');
-      return res.json({
-        temperature: data.current_weather.temperature,
-        windspeed: data.current_weather.windspeed,
+
+      // Normalized "current" block
+      const current = {
+        temperature_2m: data.current_weather.temperature,
+        windspeed_10m: data.current_weather.windspeed,
         weathercode: data.current_weather.weathercode,
+        time: data.current_weather.time,
+      };
+
+      // Hourly arrays (may be null if upstream omits)
+      const hourly = data.hourly
+        ? {
+            time: data.hourly.time,
+            temperature_2m: data.hourly.temperature_2m,
+            relative_humidity_2m: data.hourly.relative_humidity_2m,
+            // Some models return "weathercode" instead of "weathercode"
+            weathercode: data.hourly.weathercode || data.hourly.weathercode,
+          }
+        : null;
+
+      return res.json({
+        // Backwards-compat keys (keep exisiting clients working)
+        temperature: current.temperature_2m,
+        windspeed: current.windspeed_10m,
+        weathercode: current.weathercode,
+        // new structured payload
+        current,
+        hourly,
       });
     }
   } catch (err) {

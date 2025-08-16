@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import DatePicker from '@/app/components/ui/DatePicker';
 import LocationAutocomplete from './components/LocationAutocomplete';
@@ -9,62 +9,56 @@ import MoonCard from './components/MoonCard';
 import CelestialObjectsList from './components/CelestialObjectsList';
 import SkyConditions from './components/SkyConditions';
 import TimeSlider from './components/TimeSlider';
-import { fetchCelestialData, fetchWeatherData } from './utils/api';
-import type { CelestialData, CelestialObject } from './types';
+import { useDashboardData } from '@/hooks/useDashboardData';
+
+// Minimal types for local use
+type Loc = { name: string; lat: number; lon: number } | null;
+type CelestialResp = {
+  _source?: string;
+  timestamp?: string;
+  observer?: { lat: number; lon: number; elev?: number };
+  sun?: {
+    rise_iso?: string | null;
+    set_iso?: string | null;
+    altitude_degrees?: number;
+    azimuth_degrees?: number;
+  };
+  moon?: {
+    phase_degrees?: number;
+    rise_iso?: string | null;
+    set_iso?: string | null;
+    altitude_degrees?: number;
+    azimuth_degrees?: number;
+  };
+  planets?: Record<
+    string,
+    { altitude_degrees?: number; azimuth_degrees?: number }
+  >;
+} | null;
+
+type WeatherResp = {
+  temperature?: number; // legacy compat (if you kept it)
+  current?: { temperature_2m?: number; weather_code?: number };
+  hourly?: {
+    time?: string[];
+    temperature_2m?: number[];
+    relative_humidity_2m?: number[];
+    weather_code?: number[]; // sometimes weathercode
+    weathercode?: number[];
+  } | null;
+} | null;
 
 export default function Home() {
-  // --- State ---
-  const [location, setLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    displayName: string;
-  } | null>(null);
+  // === Location chosen by the user (via LocationAutocomplete) ===
+  const [location, setLocation] = useState<Loc>(null);
 
-  const [celestialData, setCelestialData] = useState<CelestialData | null>(
-    null,
-  );
-  const [loading, setLoading] = useState(false);
-
-  // Unified date & time state
+  // === Date/Time controls ===
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [celestialTime, setCelestialTime] = useState<Date>(new Date());
-
-  // Collapse/expand the location search UI
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
 
-  // --- Data fetching helper ---
-  const fetchData = async (
-    lat: number,
-    lon: number,
-    date: Date,
-    initialTime?: Date,
-  ) => {
-    setLoading(true);
-    try {
-      // Format date for the celestial API (YYYY-MM-DD)
-      const isoDate = date.toISOString().split('T')[0];
-      const data = await fetchCelestialData(lat, lon, isoDate);
-      const weather = await fetchWeatherData(lat, lon);
-
-      data.weather = {
-        temperature: weather.temperature,
-        conditions: weather.conditions,
-        currentCloudCover: weather.currentCloudCover,
-        currentVisibility: weather.currentVisibility,
-        lightPollution: weather.lightPollution,
-        hourlyForecast: weather.hourlyForecast,
-      };
-
-      setCelestialData(data);
-
-      // Default the slider time to the passed-in initialTime (or now)
-      setCelestialTime(initialTime ?? new Date());
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // === Hook that fetches from backend whenever location changes ===
+  const { celestial, weather, loading, error } = useDashboardData(location);
 
   // --- Handlers ---
 
@@ -73,40 +67,102 @@ export default function Home() {
     longitude: number,
     displayName: string,
   ) => {
-    // 1. Save location & collapse search
-    setLocation({ latitude, longitude, displayName });
+    // Save + collapse search
+    setLocation({ name: displayName, lat: latitude, lon: longitude });
     setIsSearchCollapsed(true);
 
-    // 2. Default date/time to now
+    // Reset date/time to now
     const now = new Date();
     setSelectedDate(now);
-    // fetch & default slider to now
-    fetchData(latitude, longitude, now, now);
+    setCelestialTime(now);
   };
 
   const handleDateChange = (date: Date | null) => {
-    if (!date || !location) {
-      date && setSelectedDate(date);
-      return;
-    }
-    // 1. Update date
-    setSelectedDate(date);
-
-    // 2. Re-fetch data for the new date, preserve current time on the slider
-    fetchData(location.latitude, location.longitude, date, celestialTime);
+    // (Future) You can extend useDashboardData to accept a date/iso param.
+    if (date) setSelectedDate(date);
   };
 
-  const handleTimeChange = (time: Date) => {
-    setCelestialTime(time);
-  };
+  const handleTimeChange = (time: Date) => setCelestialTime(time);
 
   const handleChangeLocation = () => {
     setIsSearchCollapsed(false);
-    setCelestialData(null);
     setLocation(null);
   };
 
-  // --- Render helpers ---
+  // --- Adapter: compose a legacy-ish object for components that expect "celestialData" ---
+  const legacyCelestialData = useMemo(() => {
+    if (!location || !celestial) return null;
+
+    const objects: any[] = [];
+
+    // Planets
+    const planetEntries = Object.entries(celestial?.planets ?? {});
+    for (const [name, pos] of planetEntries) {
+      objects.push({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        type: 'Planet',
+        altitude: (pos as any)?.altitude_degrees ?? null,
+        azimuth: (pos as any)?.azimuth_degrees ?? null,
+        hourlyData: [] as any[], // leave empty for now; prevents crashes where .some() is used
+      });
+    }
+
+    // Sun + Moon as "objects" for existing UIs that read an array
+    if (celestial?.sun) {
+      objects.push({
+        name: 'Sun',
+        type: 'Star',
+        altitude: celestial.sun.altitude_degrees ?? null,
+        azimuth: celestial.sun.azimuth_degrees ?? null,
+        hourlyData: [],
+      });
+    }
+    if (celestial?.moon) {
+      objects.push({
+        name: 'Moon',
+        type: 'Moon',
+        altitude: celestial.moon.altitude_degrees ?? null,
+        azimuth: celestial.moon.azimuth_degrees ?? null,
+        hourlyData: [],
+        additionalInfo: { phaseDegrees: celestial.moon.phase_degrees },
+      });
+    }
+
+    // Night bounds (approx) — use sunset→sunrise if available
+    const nightStart = celestial?.sun?.set_iso ?? null;
+    const nightEnd = celestial?.sun?.rise_iso ?? null;
+
+    return {
+      location: { latitude: location.lat, longitude: location.lon },
+      sunrise: celestial?.sun?.rise_iso ?? null,
+      sunset: celestial?.sun?.set_iso ?? null,
+      objects,
+      nightStart,
+      nightEnd,
+      // keep optional weather placeholder so legacy components don't crash if they touch it
+      weather: {},
+    } as any;
+  }, [celestial, location]);
+
+  const moonObject = useMemo(() => {
+    return (
+      (legacyCelestialData?.objects ?? []).find(
+        (o: any) => o?.name === 'Moon',
+      ) ?? null
+    );
+  }, [legacyCelestialData]);
+
+  const filteredCelestialData = useMemo(() => {
+    if (!legacyCelestialData) return null;
+    return {
+      ...legacyCelestialData,
+      objects: (legacyCelestialData.objects ?? []).filter(
+        (o: any) => o?.name !== 'Moon',
+      ),
+    };
+  }, [legacyCelestialData]);
+
+  // --- UI helpers ---
 
   const renderSearchSection = () => {
     if (!isSearchCollapsed) {
@@ -122,29 +178,23 @@ export default function Home() {
           </CardContent>
         </Card>
       );
-    } else {
-      return (
-        <Card className="w-full max-w-3xl mb-4 bg-card/50 backdrop-blur-sm">
-          <CardContent>
-            <div className="flex justify-between items-center">
-              <span className="font-medium">{location?.displayName}</span>
-              <button
-                onClick={handleChangeLocation}
-                className="text-blue-500 underline text-sm"
-              >
-                Change Location
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      );
     }
+    return (
+      <Card className="w-full max-w-3xl mb-4 bg-card/50 backdrop-blur-sm">
+        <CardContent>
+          <div className="flex justify-between items-center">
+            <span className="font-medium">{location?.name}</span>
+            <button
+              onClick={handleChangeLocation}
+              className="text-blue-500 underline text-sm"
+            >
+              Change Location
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
-
-  const moonObject =
-    celestialData?.objects.find((obj) => obj.name === 'Moon') ?? null;
-
-  // --- Main render ---
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-start p-4 md:p-6">
@@ -152,60 +202,75 @@ export default function Home() {
         Night Sky Explorer
       </h1>
 
-      {/* Location Section */}
+      {/* Location */}
       {renderSearchSection()}
 
-      {/* Loading Indicator */}
-      {loading && (
+      {/* States */}
+      {location && loading && (
         <p className="text-center text-primary mb-4">
-          Loading celestial data...
+          Loading data for {location.name}…
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-center text-red-500 mb-2">
+          {error}
         </p>
       )}
 
       {/* Dashboard */}
-      {celestialData && !loading && (
+      {location && !loading && !error && (
         <div className="w-full max-w-7xl space-y-6">
-          {/* Unified Date & Time Controls */}
+          {/* Date & Time */}
           <div className="flex flex-wrap items-center gap-4">
             <div className="w-1/3 min-w-[200px]">
               <DatePicker selected={selectedDate} onChange={handleDateChange} />
             </div>
             <div className="flex-1">
               <TimeSlider
-                startTime={celestialData.nightStart}
-                endTime={celestialData.nightEnd}
+                startTime={legacyCelestialData?.nightStart ?? null}
+                endTime={legacyCelestialData?.nightEnd ?? null}
                 currentTime={celestialTime}
                 onTimeChange={handleTimeChange}
                 selectedObject={null}
-                celestialObjects={celestialData.objects}
+                celestialObjects={legacyCelestialData?.objects ?? []}
               />
             </div>
           </div>
 
-          {/* Top Section: Highlights & MoonCard */}
+          {/* Highlights & Moon */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              <Highlights data={celestialData} currentTime={celestialTime} />
+              <Highlights
+                location={location}
+                celestial={celestial as CelestialResp}
+                weather={weather as WeatherResp}
+                currentTime={celestialTime}
+              />
             </div>
             <div className="col-span-4">
-              {moonObject && (
-                <MoonCard object={moonObject} currentTime={celestialTime} />
-              )}
+              <MoonCard object={moonObject} currentTime={celestialTime} />
             </div>
           </div>
 
           {/* Objects List & Sky Conditions */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              <CelestialObjectsList
-                data={celestialData}
-                currentTime={celestialTime}
-                onTimeChange={setCelestialTime}
-                onObjectSelect={() => {}}
-              />
+              {filteredCelestialData && (
+                <CelestialObjectsList
+                  data={filteredCelestialData}
+                  currentTime={celestialTime}
+                  onTimeChange={setCelestialTime}
+                  onObjectSelect={() => {}}
+                />
+              )}
             </div>
             <div className="col-span-4">
-              <SkyConditions data={celestialData} currentTime={celestialTime} />
+              <SkyConditions
+                location={location}
+                celestial={celestial as CelestialResp}
+                weather={weather as WeatherResp}
+                currentTime={celestialTime}
+              />
             </div>
           </div>
         </div>

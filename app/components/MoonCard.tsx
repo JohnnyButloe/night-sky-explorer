@@ -1,100 +1,104 @@
-// app/components/MoonCard.tsx
 'use client';
 
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import type { CelestialObject } from '../types';
 import { parseDate } from '@/app/utils/dateUtils';
 
+type Celestial = {
+  moon?: {
+    phase_degrees?: number;
+    altitude_degrees?: number;
+    azimuth_degrees?: number;
+    rise_iso?: string | null;
+    set_iso?: string | null;
+  } | null;
+} | null;
+
 interface MoonCardProps {
-  object: CelestialObject;
+  celestial: Celestial;
   currentTime: Date | string;
 }
 
-export default function MoonCard({ object, currentTime }: MoonCardProps) {
-  // 1) Normalize currentTime to a real Date
-  const currentDate = parseDate(currentTime);
+function phaseName(phaseDeg?: number): string | null {
+  if (typeof phaseDeg !== 'number') return null;
+  const p = ((phaseDeg % 360) + 360) % 360;
+  if (p < 22.5) return 'New Moon';
+  if (p < 67.5) return 'Waxing Crescent';
+  if (p < 112.5) return 'First Quarter';
+  if (p < 157.5) return 'Waxing Gibbous';
+  if (p < 202.5) return 'Full Moon';
+  if (p < 247.5) return 'Waning Gibbous';
+  if (p < 292.5) return 'Last Quarter';
+  if (p < 337.5) return 'Waning Crescent';
+  return 'New Moon';
+}
 
-  // 2) Destructure only the fields your API actually provides
-  const { bestViewingTime, riseTime, setTime } = object.additionalInfo;
+export default function MoonCard({ celestial, currentTime }: MoonCardProps) {
+  const now = parseDate(currentTime);
+  const moon = celestial?.moon ?? null;
 
-  // 3) Find the hourly entry matching the slider’s time, or fallback
-  const currentHourData = object.hourlyData.find(
-    (entry) => parseDate(entry.time).getTime() === currentDate.getTime(),
-  ) || { time: '', altitude: 0, azimuth: 0 };
+  if (!moon) {
+    return (
+      <Card className="bg-card/50 backdrop-blur-sm p-3 w-full h-full">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-md text-primary">The Moon</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 text-xs space-y-1 text-gray-400">
+          <p>Moon data not available for the selected time.</p>
+          <p>It may be below the horizon.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  // 4) Compute the moon’s maximum altitude from hourlyData
-  const maxAltitude = object.hourlyData.reduce(
-    (max, entry) => Math.max(max, entry.altitude),
-    0,
-  );
-
-  // 5) Helper to format optional ISO strings
-  const formatOpt = (iso?: string | null) => {
-    if (!iso) return null;
-    const dt = parseDate(iso);
-    return isNaN(dt.getTime())
-      ? null
-      : dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const bestTimeStr = formatOpt(bestViewingTime);
-  const riseTimeStr = formatOpt(riseTime);
-  const setTimeStr = formatOpt(setTime);
+  const altitude =
+    typeof moon.altitude_degrees === 'number'
+      ? moon.altitude_degrees.toFixed(1)
+      : '—';
+  const azimuth =
+    typeof moon.azimuth_degrees === 'number'
+      ? moon.azimuth_degrees.toFixed(1)
+      : '—';
+  const rise = moon.rise_iso
+    ? new Date(moon.rise_iso).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'N/A';
+  const set = moon.set_iso
+    ? new Date(moon.set_iso).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'N/A';
+  const phase = phaseName(moon.phase_degrees);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm p-3 w-full">
       <CardHeader className="pb-1">
-        <CardTitle className="text-md text-primary">{object.name}</CardTitle>
+        <CardTitle className="text-md text-primary">The Moon</CardTitle>
       </CardHeader>
       <CardContent className="pt-0 text-xs space-y-1">
-        {/* Phase & Illumination appear only if your API provides them */}
-        {'phase' in object.additionalInfo && (
+        {phase && (
           <p>
-            <strong>Phase:</strong> {object.additionalInfo.phase}
+            <strong>Phase:</strong> {phase}
           </p>
         )}
-        {'illumination' in object.additionalInfo && (
-          <p>
-            <strong>Illumination:</strong> {object.additionalInfo.illumination}%
-          </p>
-        )}
-
-        {/* Current altitude/azimuth */}
         <p>
-          <strong>Altitude:</strong> {currentHourData.altitude.toFixed(1)}°
+          <strong>Altitude:</strong> {altitude}°
         </p>
         <p>
-          <strong>Azimuth:</strong> {currentHourData.azimuth.toFixed(1)}°
+          <strong>Azimuth:</strong> {azimuth}°
         </p>
-
-        {/* Computed maximum altitude */}
         <p>
-          <strong>Max Altitude:</strong> {maxAltitude.toFixed(1)}°
+          <strong>Rise Time:</strong> {rise}
         </p>
-
-        {/* Best viewing time */}
-        {bestTimeStr && (
-          <p>
-            <strong>Best Viewing:</strong> {bestTimeStr}
-          </p>
-        )}
-
-        {/* Rise/set times */}
-        {riseTimeStr ? (
-          <p>
-            <strong>Rise Time:</strong> {riseTimeStr}
-          </p>
-        ) : (
-          <p className="text-gray-400">Rise Time: N/A</p>
-        )}
-        {setTimeStr ? (
-          <p>
-            <strong>Set Time:</strong> {setTimeStr}
-          </p>
-        ) : (
-          <p className="text-gray-400">Set Time: N/A</p>
-        )}
+        <p>
+          <strong>Set Time:</strong> {set}
+        </p>
+        <p className="text-gray-500">
+          <em>Updated:</em> {now.toLocaleString()}
+        </p>
       </CardContent>
     </Card>
   );

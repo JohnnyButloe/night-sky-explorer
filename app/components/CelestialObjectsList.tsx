@@ -1,18 +1,32 @@
-// app/components/CelestialObjectsList.tsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ChevronDown, Star } from 'lucide-react';
-import type { CelestialData, CelestialObject } from '../types';
 import CelestialGraph from '@/app/components/CelestialGraph';
 import { parseDate } from '@/app/utils/dateUtils';
 
+type Celestial = {
+  planets?: Record<
+    string,
+    { altitude_degrees?: number; azimuth_degrees?: number }
+  >;
+  sun?: { altitude_degrees?: number; azimuth_degrees?: number } | null;
+  moon?: { altitude_degrees?: number; azimuth_degrees?: number } | null;
+} | null;
+
+type Weather = {
+  currentCloudCover?: number;
+  lightPollution?: number;
+  hourlyForecast?: Array<{ time: string | Date; cloudCover?: number }>;
+} | null;
+
 interface CelestialObjectsListProps {
-  data: CelestialData;
+  celestial: Celestial;
+  weather: Weather;
   currentTime: Date | string;
-  onTimeChange: (newTime: Date) => void;
-  onObjectSelect: (object: CelestialObject | null) => void;
+  onTimeChange?: (newTime: Date) => void;
+  onObjectSelect?: (object: any | null) => void;
 }
 
 function getVisibilityInfo(altitude: number, azimuth: number) {
@@ -26,26 +40,35 @@ function getVisibilityInfo(altitude: number, azimuth: number) {
 }
 
 export default function CelestialObjectsList({
-  data,
+  celestial,
+  weather,
   currentTime,
+  onTimeChange,
+  onObjectSelect,
 }: CelestialObjectsListProps) {
-  // 1) Ensure currentTime is a Date
   const currentDate = parseDate(currentTime);
-
-  // 2) Default hourlyForecast to an array if missing
-  const hourlyForecast = data.weather.hourlyForecast ?? [];
-
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
-  // Exclude the Moon
-  const objectsExcludingMoon = useMemo(
-    () => data.objects.filter((obj) => obj.name !== 'Moon'),
-    [data.objects],
-  );
+  // Build a normalized list of objects from the celestial shape (planets only)
+  const objects = useMemo(() => {
+    const entries = Object.entries(celestial?.planets ?? {});
+    return entries.map(([name, pos]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      type: 'Planet',
+      // Synthetic 1-point hourlyData so existing graph & UI don't crash
+      hourlyData: [
+        {
+          time: currentDate.toISOString(),
+          altitude: pos?.altitude_degrees ?? 0,
+          azimuth: pos?.azimuth_degrees ?? 0,
+        },
+      ],
+      additionalInfo: {},
+    }));
+  }, [celestial, currentDate]);
 
-  // Sort favorites first
   const sortedObjects = useMemo(() => {
-    const list = [...objectsExcludingMoon];
+    const list = [...objects];
     list.sort((a, b) => {
       const aFav = favorites.has(a.name);
       const bFav = favorites.has(b.name);
@@ -54,7 +77,7 @@ export default function CelestialObjectsList({
       return 0;
     });
     return list;
-  }, [objectsExcludingMoon, favorites]);
+  }, [objects, favorites]);
 
   const toggleFavorite = (name: string) =>
     setFavorites((prev) => {
@@ -68,7 +91,7 @@ export default function CelestialObjectsList({
       <Card className="bg-card/50 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-lg text-primary">
-            Visible Celestial Objects
+            Celestial Objects
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -79,6 +102,8 @@ export default function CelestialObjectsList({
       </Card>
     );
   }
+
+  const hourlyForecast = weather?.hourlyForecast ?? [];
 
   return (
     <div className="space-y-4">
@@ -91,37 +116,25 @@ export default function CelestialObjectsList({
         <CardContent className="pt-0">
           <div className="space-y-2">
             {sortedObjects.map((object) => {
-              // 3) Current-hour data
-              const currentHourData = object.hourlyData.find(
-                (d) => parseDate(d.time).getTime() === currentDate.getTime(),
-              ) || { altitude: 0, azimuth: 0 };
-
-              // 4) Visibility info
+              const currentHourData = object.hourlyData[0] || {
+                altitude: 0,
+                azimuth: 0,
+              };
               const { visible, direction } = getVisibilityInfo(
                 currentHourData.altitude,
                 currentHourData.azimuth,
               );
 
-              // 5) Best-viewing flag
-              let isBestViewing = false;
-              if (object.additionalInfo.bestViewingTime) {
-                const bestDate = parseDate(
-                  object.additionalInfo.bestViewingTime,
-                );
-                isBestViewing =
-                  Math.abs(bestDate.getTime() - currentDate.getTime()) <
-                  30 * 60 * 1000;
-              }
+              let isBestViewing = false; // not computed yet
 
-              // 6) Cloud cover at this time
               const cloudCoverAtTime =
                 hourlyForecast.find(
                   (f) => parseDate(f.time).getTime() === currentDate.getTime(),
                 )?.cloudCover ??
-                data.weather.currentCloudCover ??
+                weather?.currentCloudCover ??
                 50;
 
-              const lightPollution = data.weather.lightPollution ?? 5;
+              const lightPollution = weather?.lightPollution ?? 5;
               const isGoodViewing =
                 visible &&
                 currentHourData.altitude > 30 &&
@@ -130,29 +143,20 @@ export default function CelestialObjectsList({
               return (
                 <Card
                   key={object.name}
-                  className={`mb-2 bg-card/50 backdrop-blur-sm ${
-                    isBestViewing ? 'border border-yellow-400' : ''
-                  }`}
+                  className={`mb-2 bg-card/50 backdrop-blur-sm ${isBestViewing ? 'border border-yellow-400' : ''}`}
                 >
                   <CardContent className="p-3">
                     <div className="flex items-start space-x-4">
                       {/* Left Column */}
                       <div className="w-1/3 space-y-1">
                         <h3 className="font-semibold text-sm flex items-center text-gray-200">
-                          {object.name}{' '}
-                          {object.type === 'Constellation'
-                            ? '⭐'
-                            : `(${object.type})`}
+                          {object.name} ({object.type})
                           <button
                             onClick={() => toggleFavorite(object.name)}
                             className="ml-2 focus:outline-none"
                           >
                             <Star
-                              className={`w-4 h-4 ${
-                                favorites.has(object.name)
-                                  ? 'text-yellow-400 fill-yellow-400'
-                                  : 'text-gray-400'
-                              }`}
+                              className={`w-4 h-4 ${favorites.has(object.name) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
                             />
                           </button>
                         </h3>
@@ -194,17 +198,7 @@ export default function CelestialObjectsList({
                         {visible && (
                           <p className="text-gray-300">{direction}</p>
                         )}
-                        <p className="text-blue-400">
-                          Best Time:{' '}
-                          {object.additionalInfo.bestViewingTime
-                            ? parseDate(
-                                object.additionalInfo.bestViewingTime,
-                              ).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : 'N/A'}
-                        </p>
+                        <p className="text-blue-400">Best Time: N/A</p>
                       </div>
                     </div>
                   </CardContent>

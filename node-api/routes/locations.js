@@ -1,12 +1,31 @@
+// routes/locations.js
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import cache from '../cache.js'; // <-- Import your cache module!
+import cache from '../cache.js';
 import { geocodeAddress, reverseGeocode } from '../utils/nominatimClient.js';
 
 export const router = express.Router();
 
+// --- Helpers & filters ---
+const CITY_TYPES = new Set([
+  'city',
+  'town',
+  'village',
+  'hamlet',
+  'locality',
+  'county',
+]);
+
+const sanitize = (r) => ({
+  name: r?.display_name || r?.name || '',
+  lat: r?.lat != null ? parseFloat(r.lat) : undefined,
+  lon: r?.lon != null ? parseFloat(r.lon) : undefined,
+  class: r?.class,
+  type: r?.type || r?.addresstype,
+});
+
 // --- Rate Limiter ---
-// Limit: 60 requests per minute per IP for geocoding endpoints
+// 60 req/min per IP for geocoding endpoints
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
@@ -17,9 +36,15 @@ const limiter = rateLimit({
 
 // --- ROUTES ---
 
-// Matches: /locations/search?q=...&limit=5
+// GET /api/locations/search?q=tokyo&limit=5&citiesOnly=true&minimal=true
 router.get('/search', limiter, async (req, res) => {
-  const { q, limit = 5 } = req.query;
+  const { q } = req.query;
+  const limitParam = Number(req.query.limit ?? 5);
+  const limitNum = Number.isFinite(limitParam)
+    ? Math.min(10, Math.max(1, limitParam))
+    : 5;
+  const citiesOnly = String(req.query.citiesOnly ?? 'false') === 'true';
+  const minimal = String(req.query.minimal ?? 'false') === 'true';
 
   if (!q) {
     return res
@@ -27,93 +52,120 @@ router.get('/search', limiter, async (req, res) => {
       .json({ error: 'Missing search query parameter "q"' });
   }
 
-  const cacheKey = `locations:search:${q}:${limit}`;
+  const cacheKey = `locations:search:${q}:${limitNum}:${citiesOnly}:${minimal}`;
+
   try {
-    // 1. Try Redis cache first
+    // 1) Cache
     const cached = await cache.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
 
-    // 2. Mock Mode
+    // 2) Mock mode
     if (process.env.USE_MOCKS === 'true') {
       const { mockLocationData } = await import('../mockData.js');
-      const results = mockLocationData.filter((loc) =>
-        loc.display_name.toLowerCase().includes(q.toLowerCase()),
-      );
-      await cache.set(cacheKey, JSON.stringify(results.slice(0, limit)), 86400); // 1 day TTL
-      return res.json(results.slice(0, limit));
+      let results = mockLocationData
+        .filter((loc) =>
+          (loc.display_name || '').toLowerCase().includes(q.toLowerCase()),
+        )
+        .slice(0, limitNum);
+
+      if (citiesOnly) {
+        results = results.filter((r) =>
+          CITY_TYPES.has(r.type ?? r.addresstype),
+        );
+        if (results.length === 0) {
+          return res.status(404).json({
+            error: 'No city-like locations found for the given query.',
+          });
+        }
+      }
+
+      const payload = minimal ? results.map(sanitize) : results;
+      await cache.set(cacheKey, JSON.stringify(payload), 86400); // 1 day TTL
+      return res.json(payload);
     }
 
-    // 3. Real API
-    const data = await geocodeAddress(q, limit);
+    // 3) Real API
+    let data = await geocodeAddress(q, limitNum);
 
-    // -- IMPROVEMENT: Handle no results from the API --
-    // If the external service returns an empty array, treat it as "Not Found".
     if (!data || data.length === 0) {
       return res
         .status(404)
         .json({ error: 'No locations found for the given query.' });
     }
 
-    await cache.set(cacheKey, JSON.stringify(data), 86400); // 1 day TTL
-    return res.json(data);
+    if (citiesOnly) {
+      data = data.filter((r) => CITY_TYPES.has(r.type ?? r.addresstype));
+      if (data.length === 0) {
+        return res
+          .status(404)
+          .json({ error: 'No city-like locations found for the given query.' });
+      }
+    }
+
+    const payload = minimal ? data.map(sanitize) : data;
+    await cache.set(cacheKey, JSON.stringify(payload), 86400); // 1 day TTL
+    return res.json(payload);
   } catch (err) {
     console.error('[Geocoding Search Error]', err);
-
-    // -- IMPROVEMENT: Propagate status codes from the external API --
-    // If the error from the client (e.g., axios) includes a response status, use it.
-    // Otherwise, default to a 500 Internal Server Error.
     const statusCode = err.response?.status || 500;
-    const message = err.response?.data?.error || err.message;
-
+    const message = err.response?.data?.error || err.message || 'Unknown error';
     return res
       .status(statusCode)
       .json({ error: `Geocoding search failed: ${message}` });
   }
 });
 
-// Matches: /locations/reverse?lat=...&lon=...
+// GET /api/locations/reverse?lat=35.68&lon=139.69&minimal=true
 router.get('/reverse', limiter, async (req, res) => {
   const { lat, lon } = req.query;
+  const minimal = String(req.query.minimal ?? 'false') === 'true';
 
-  if (!lat || !lon) {
+  if (lat == null || lon == null) {
     return res
       .status(400)
       .json({ error: 'Missing latitude or longitude parameters' });
   }
 
-  const cacheKey = `locations:reverse:${lat}:${lon}`;
+  const latNum = Number(lat);
+  const lonNum = Number(lon);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
+    return res.status(400).json({ error: 'Invalid latitude or longitude' });
+  }
+
+  const cacheKey = `locations:reverse:${latNum}:${lonNum}:${minimal}`;
+
   try {
-    // 1. Try Redis cache first
+    // 1) Cache
     const cached = await cache.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
 
-    // 2. Mock Mode
+    // 2) Mock mode
     if (process.env.USE_MOCKS === 'true') {
-      const { mockLocationData } = await import('../mockData.js');
       const mockResult = {
         display_name: 'Mock City, Mock State, Mock Country',
-        lat,
-        lon,
+        lat: latNum,
+        lon: lonNum,
       };
-      await cache.set(cacheKey, JSON.stringify(mockResult), 86400);
-      return res.json(mockResult);
+      const payload = minimal ? sanitize(mockResult) : mockResult;
+      await cache.set(cacheKey, JSON.stringify(payload), 86400);
+      return res.json(payload);
     }
 
-    // 3. Real API
-    const data = await reverseGeocode(lat, lon);
-    await cache.set(cacheKey, JSON.stringify(data), 86400);
-    return res.json(data);
+    // 3) Real API
+    const data = await reverseGeocode(latNum, lonNum);
+    const payload = minimal
+      ? sanitize({ ...data, lat: latNum, lon: lonNum })
+      : data;
+    await cache.set(cacheKey, JSON.stringify(payload), 86400);
+    return res.json(payload);
   } catch (err) {
     console.error('[Reverse Geocoding Error]', err);
-
-    // -- IMPROVEMENT: Propagate status codes from the external API --
     const statusCode = err.response?.status || 500;
-    const message = err.response?.data?.error || err.message;
-
+    const message = err.response?.data?.error || err.message || 'Unknown error';
     return res
       .status(statusCode)
       .json({ error: `Reverse geocoding failed: ${message}` });

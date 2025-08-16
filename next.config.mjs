@@ -24,7 +24,7 @@ const nextConfig = {
   // Environment variables configuration
   env: {
     NEXT_PUBLIC_ASTRONOMY_API_KEY: process.env.NEXT_PUBLIC_ASTRONOMY_API_KEY,
-    ASTRONOMY_API_SECRET: process.env.ASTRONOMY_API_SECRET,
+    // ASTRONOMY_API_SECRET: process.env.ASTRONOMY_API_SECRET,
     NEXT_PUBLIC_ORIGIN_URL:
       process.env.NEXT_PUBLIC_ORIGIN_URL || 'http://localhost:3000',
   },
@@ -35,6 +35,11 @@ const nextConfig = {
   // Optional: Add server-only runtime configuration
   serverRuntimeConfig: {
     // Add any server-only config here
+  },
+  async rewrites() {
+    // const dest = process.env.BACKEND_ORIGIN || 'http://localhost:3001';
+    const dest = process.env.BACKEND_ORIGIN || 'http://localhost:3001';
+    return [{ source: '/api/:path*', destination: `${dest}/api/:path*` }];
   },
 };
 

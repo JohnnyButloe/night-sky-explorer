@@ -1,27 +1,55 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Sun, Sunrise, Eye, Cloud } from 'lucide-react';
+import { Sun, Sunrise, Eye, Cloud, Thermometer } from 'lucide-react';
+
+type Loc = { name: string; lat: number; lon: number } | null;
+
+type Celestial = {
+  sun?: { rise_iso?: string | null; set_iso?: string | null };
+} | null;
+
+type Weather = {
+  temperature?: number;
+  current?: { temperature_2m?: number; weather_code?: number };
+  hourly?: {
+    time?: string[];
+    temperature_2m?: number[];
+    relative_humidity_2m?: number[];
+    weather_code?: number[];
+    weathercode?: number[];
+  } | null;
+} | null;
 
 interface SkyConditionsProps {
-  data: {
-    location: {
-      latitude: number;
-      longitude: number;
-    };
-    sunset: string;
-    sunrise: string;
-    weather: {
-      lightPollution?: number;
-      currentVisibility: number;
-      currentCloudCover: number;
-    };
-  };
+  location: Loc;
+  celestial: Celestial;
+  weather: Weather;
   currentTime: Date;
 }
 
 export default function SkyConditions({
-  data,
+  location,
+  celestial,
+  weather,
   currentTime,
 }: SkyConditionsProps) {
+  const lat = typeof location?.lat === 'number' ? location.lat.toFixed(4) : '—';
+  const lon = typeof location?.lon === 'number' ? location.lon.toFixed(4) : '—';
+
+  const sunset = celestial?.sun?.set_iso ?? '—';
+  const sunrise = celestial?.sun?.rise_iso ?? '—';
+
+  // Temperature (prefer structured "current.temperature_2m", fallback to legacy "temperature")
+  const temperature =
+    typeof weather?.current?.temperature_2m === 'number'
+      ? `${weather!.current!.temperature_2m}°`
+      : typeof weather?.temperature === 'number'
+        ? `${weather!.temperature}°`
+        : '—';
+
+  // Cloud cover & visibility may not be included in your weather endpoint yet; show "—" if absent
+  const cloudCover = '—';
+  const visibilityKm = '—';
+
   return (
     <Card className="h-full bg-card/50 backdrop-blur-sm">
       <CardHeader className="pb-2">
@@ -31,24 +59,18 @@ export default function SkyConditions({
         <div className="col-span-12 space-y-1">
           <h3 className="font-semibold text-sm">Location</h3>
           <div className="grid grid-cols-2 text-sm">
-            <p>Lat: {data.location.latitude.toFixed(4)}°</p>
-            <p>Long: {data.location.longitude.toFixed(4)}°</p>
+            <p>Lat: {lat}°</p>
+            <p>Long: {lon}°</p>
           </div>
           <div className="grid grid-cols-2 text-sm">
             <div className="flex items-center">
               <Sun className="w-4 h-4 mr-1" />
-              <span>Sunset: {data.sunset}</span>
+              <span>Sunset: {sunset}</span>
             </div>
             <div className="flex items-center">
               <Sunrise className="w-4 h-4 mr-1" />
-              <span>Sunrise: {data.sunrise}</span>
+              <span>Sunrise: {sunrise}</span>
             </div>
-          </div>
-          <div className="text-sm mt-2">
-            <p>
-              <strong>Light Pollution:</strong>{' '}
-              {data.weather.lightPollution ?? 'N/A'} / 10
-            </p>
           </div>
         </div>
 
@@ -56,15 +78,18 @@ export default function SkyConditions({
           <h3 className="font-semibold text-sm">Weather</h3>
           <div className="grid grid-cols-2 text-sm">
             <div className="flex items-center">
-              <Eye className="w-4 h-4 mr-1" />
-              <span>
-                Visibility: {(data.weather.currentVisibility / 1000).toFixed(1)}{' '}
-                km
-              </span>
+              <Thermometer className="w-4 h-4 mr-1" />
+              <span>Temperature: {temperature}</span>
             </div>
             <div className="flex items-center">
+              <Eye className="w-4 h-4 mr-1" />
+              <span>Visibility: {visibilityKm}</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 text-sm">
+            <div className="flex items-center">
               <Cloud className="w-4 h-4 mr-1" />
-              <span>Cloud Cover: {data.weather.currentCloudCover}%</span>
+              <span>Cloud Cover: {cloudCover}</span>
             </div>
           </div>
         </div>

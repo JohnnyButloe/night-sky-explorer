@@ -1,47 +1,53 @@
-// app/components/Highlights.tsx
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import type { CelestialData } from '../types';
-import { parseDate } from '@/app/utils/dateUtils';
+
+type Loc = { name: string; lat: number; lon: number } | null;
+
+type Celestial = {
+  sun?: { rise_iso?: string | null; set_iso?: string | null };
+  moon?: { phase_degrees?: number; altitude_degrees?: number };
+  planets?: Record<string, { altitude_degrees?: number }>;
+} | null;
+
+type Weather = {
+  current?: { temperature_2m?: number; weather_code?: number };
+  hourly?: {
+    time?: string[];
+    temperature_2m?: number[];
+    weather_code?: number[];
+    weathercode?: number[];
+  } | null;
+} | null;
 
 interface HighlightsProps {
-  data: CelestialData;
+  location: Loc;
+  celestial: Celestial;
+  weather: Weather;
   currentTime: Date | string;
 }
 
-const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
-  // Use parseDate to ensure we have a Date object.
-  const currentDate = parseDate(currentTime);
+export default function Highlights({
+  location,
+  celestial,
+  weather,
+  currentTime,
+}: HighlightsProps) {
+  const when =
+    typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
 
-  // Filter objects that are visible at the current time
-  const visibleObjects = data.objects.filter((obj) =>
-    obj.hourlyData.some((hour) => {
-      const hourTime = parseDate(hour.time).getTime();
-      const currentTimeMs = currentDate.getTime();
-      return hourTime === currentTimeMs && hour.altitude > 0;
-    }),
-  );
+  // Visible planets = altitude > 0 now (simple, robust)
+  const visiblePlanets = Object.entries(celestial?.planets ?? {})
+    .filter(([, pos]) => (pos?.altitude_degrees ?? -90) > 0)
+    .map(([name]) => name.charAt(0).toUpperCase() + name.slice(1));
 
-  const bestViewingObjects = visibleObjects.filter((obj) => {
-    if (!obj.additionalInfo.bestViewingTime) return false;
-    const bestViewingTime = parseDate(obj.additionalInfo.bestViewingTime);
-    if (isNaN(bestViewingTime.getTime())) return false;
-    return (
-      Math.abs(bestViewingTime.getTime() - currentDate.getTime()) <
-      30 * 60 * 1000
-    );
-  });
+  const totalVisible =
+    visiblePlanets.length +
+    (celestial?.moon && (celestial.moon.altitude_degrees ?? -90) > 0 ? 1 : 0);
 
-  const visiblePlanets = visibleObjects
-    .filter((obj) => obj.type === 'Planet')
-    .map((obj) => obj.name);
-  const totalVisible = visibleObjects.length;
-  const bestViewingCount = bestViewingObjects.length;
-
-  // Night Sky Score Calculation
-  const cloudCover = data.weather.currentCloudCover;
-  const visibility = data.weather.currentVisibility / 10;
-  const lightPollution = data.weather.lightPollution ?? 5;
+  // Night Sky Score (simple placeholder): penalize clouds (unknown => 100), light pollution (assume 5), reward visibility (unknown => 0)
+  const cloudCover = 100; // until your weather endpoint exposes it
+  const visibility = 0;
+  const lightPollution = 5;
   const nightSkyScore = Math.max(
     1,
     Math.min(10, 10 - (cloudCover / 10 + lightPollution - visibility)),
@@ -51,7 +57,7 @@ const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
     <Card className="bg-card/50 backdrop-blur-sm p-3 w-full">
       <CardHeader className="pb-1">
         <CardTitle className="text-md text-primary">
-          Tonight’s Highlights
+          Tonight’s Highlights {location?.name ? `— ${location.name}` : ''}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 text-xs">
@@ -61,22 +67,20 @@ const Highlights: React.FC<HighlightsProps> = ({ data, currentTime }) => {
         <p>
           <strong>Total Visible Objects:</strong> {totalVisible}
         </p>
-        <p>
-          <strong>Best Viewing Opportunities:</strong> {bestViewingCount}
-        </p>
         {visiblePlanets.length > 0 && (
           <div className="mt-2">
             <strong>Visible Planets:</strong>
             <ul className="list-disc list-inside text-sm mt-1">
-              {visiblePlanets.map((planet) => (
-                <li key={planet}>⭐ {planet}</li>
+              {visiblePlanets.map((p) => (
+                <li key={p}>⭐ {p}</li>
               ))}
             </ul>
           </div>
         )}
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Updated: {when.toLocaleString()}
+        </p>
       </CardContent>
     </Card>
   );
-};
-
-export default Highlights;
+}
