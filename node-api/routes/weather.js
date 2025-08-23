@@ -62,11 +62,11 @@ router.get('/', async (req, res) => {
     } else {
       // Current weather + hourly (unified clean JSON) - backend-campatible
       const apiUrl =
-        `https:api.open-meteo.com/v1/forecast` +
-        `?latitude=$[lat]` +
+        `https://api.open-meteo.com/v1/forecast` +
+        `?latitude=${lat}` +
         `&longitude=${lon}` +
         `&current_weather=true` +
-        `&hourly=temperature_2m,precipitation,weathercode` +
+        `&hourly=temperature_2m,precipitation,weathercode,relative_humidity_2m` +
         `&timezone=auto`;
 
       const response = await fetch(apiUrl);

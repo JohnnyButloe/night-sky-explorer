@@ -2,11 +2,17 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import cache from '../cache.js';
-import { geocodeAddress, reverseGeocode } from '../utils/nominatimClient.js';
+import {
+  geocodeAddress,
+  geocodeStructured,
+  reverseGeocode,
+} from '../utils/nominatimClient.js';
 
 export const router = express.Router();
 
-// --- Helpers & filters ---
+/* ----------------------------- Helpers & filters ---------------------------- */
+
+// Broadened to avoid false negatives for large admin cities/prefectures.
 const CITY_TYPES = new Set([
   'city',
   'town',
@@ -14,6 +20,13 @@ const CITY_TYPES = new Set([
   'hamlet',
   'locality',
   'county',
+  'municipality',
+  'administrative',
+  'borough',
+  'state_district',
+  'district',
+  'province',
+  'prefecture',
 ]);
 
 const sanitize = (r) => ({
@@ -24,8 +37,9 @@ const sanitize = (r) => ({
   type: r?.type || r?.addresstype,
 });
 
-// --- Rate Limiter ---
-// 60 req/min per IP for geocoding endpoints
+/* -------------------------------- Rate limit --------------------------------
+   60 req/min per IP for geocoding endpoints
+----------------------------------------------------------------------------- */
 const limiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
@@ -34,7 +48,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-// --- ROUTES ---
+/* ---------------------------------- Routes --------------------------------- */
 
 // GET /api/locations/search?q=tokyo&limit=5&citiesOnly=true&minimal=true
 router.get('/search', limiter, async (req, res) => {
@@ -46,27 +60,31 @@ router.get('/search', limiter, async (req, res) => {
   const citiesOnly = String(req.query.citiesOnly ?? 'false') === 'true';
   const minimal = String(req.query.minimal ?? 'false') === 'true';
 
+  // Optional hard country filter (CSV of ISO 3166-1 alpha-2), e.g. "us,ca,jp"
+  const countrycodes = process.env.GEOCODE_COUNTRYCODES || undefined;
+
   if (!q) {
     return res
       .status(400)
       .json({ error: 'Missing search query parameter "q"' });
   }
 
-  const cacheKey = `locations:search:${q}:${limitNum}:${citiesOnly}:${minimal}`;
+  const qStr = String(q);
+  const cacheKey = `locations:search:${qStr}:${limitNum}:${citiesOnly}:${minimal}:${countrycodes || '-'}`;
 
   try {
-    // 1) Cache
+    /* 1) Cache */
     const cached = await cache.get(cacheKey);
     if (cached) {
       return res.json(JSON.parse(cached));
     }
 
-    // 2) Mock mode
+    /* 2) Mock mode */
     if (process.env.USE_MOCKS === 'true') {
       const { mockLocationData } = await import('../mockData.js');
       let results = mockLocationData
         .filter((loc) =>
-          (loc.display_name || '').toLowerCase().includes(q.toLowerCase()),
+          (loc.display_name || '').toLowerCase().includes(qStr.toLowerCase()),
         )
         .slice(0, limitNum);
 
@@ -74,10 +92,10 @@ router.get('/search', limiter, async (req, res) => {
         results = results.filter((r) =>
           CITY_TYPES.has(r.type ?? r.addresstype),
         );
+        // Friendlier: no 404s for “no suggestions”
         if (results.length === 0) {
-          return res.status(404).json({
-            error: 'No city-like locations found for the given query.',
-          });
+          await cache.set(cacheKey, JSON.stringify([]), 86400);
+          return res.json([]);
         }
       }
 
@@ -86,21 +104,70 @@ router.get('/search', limiter, async (req, res) => {
       return res.json(payload);
     }
 
-    // 3) Real API
-    let data = await geocodeAddress(q, limitNum);
+    /* 3) Real API */
 
-    if (!data || data.length === 0) {
-      return res
-        .status(404)
-        .json({ error: 'No locations found for the given query.' });
+    // Heuristic: treat short alphanumeric strings with at least one digit as potential postal codes
+    const isPostal =
+      /^[A-Za-z0-9][A-Za-z0-9 \-]{1,9}$/.test(qStr) && /\d/.test(qStr);
+
+    let data = [];
+
+    if (citiesOnly) {
+      if (isPostal) {
+        // Structured postal-code search: city-level first, then any settlement
+        data = await geocodeStructured({ postalcode: qStr }, limitNum, {
+          featureType: 'city',
+          countrycodes,
+        });
+        if (!data || data.length === 0) {
+          data = await geocodeStructured({ postalcode: qStr }, limitNum, {
+            featureType: 'settlement',
+            countrycodes,
+          });
+        }
+        // Fallback to free-form if structured yields nothing
+        if (!data || data.length === 0) {
+          data = await geocodeAddress(qStr, limitNum, {
+            featureType: 'city',
+            countrycodes,
+          });
+          if (!data || data.length === 0) {
+            data = await geocodeAddress(qStr, limitNum, {
+              featureType: 'settlement',
+              countrycodes,
+            });
+          }
+        }
+      } else {
+        // Free-form, restricted to address layer: city first, then settlement
+        data = await geocodeAddress(qStr, limitNum, {
+          featureType: 'city',
+          countrycodes,
+        });
+        if (!data || data.length === 0) {
+          data = await geocodeAddress(qStr, limitNum, {
+            featureType: 'settlement',
+            countrycodes,
+          });
+        }
+      }
+    } else {
+      // Not city-restricted: free-form without address-layer constraint
+      data = await geocodeAddress(qStr, limitNum, { countrycodes });
     }
 
+    // If nothing matched, treat as "no suggestions" (200 + [])
+    if (!data || data.length === 0) {
+      await cache.set(cacheKey, JSON.stringify([]), 86400);
+      return res.json([]);
+    }
+
+    // Optional secondary filter to de-noise admin variants
     if (citiesOnly) {
       data = data.filter((r) => CITY_TYPES.has(r.type ?? r.addresstype));
       if (data.length === 0) {
-        return res
-          .status(404)
-          .json({ error: 'No city-like locations found for the given query.' });
+        await cache.set(cacheKey, JSON.stringify([]), 86400);
+        return res.json([]);
       }
     }
 

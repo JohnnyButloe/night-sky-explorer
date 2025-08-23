@@ -13,6 +13,33 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 function logApiCall(endpoint: string, params: Record<string, any>) {
   console.log(`API Call to: ${endpoint}`, params);
 }
+/**
+ * Normalize non-OK responses by reading text/JSON for a clearer error.
+ */
+async function throwDetailedApiError(
+  response: Response,
+  endpoint: string,
+): Promise<never> {
+  let errorText = response.statusText;
+  try {
+    const text = await response.text();
+    if (text) {
+      try {
+        const json = JSON.parse(text);
+        errorText = json?.error || json?.message || errorText;
+        if (!errorText) errorText = text;
+      } catch {
+        errorText = text;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  console.error(`API Error from ${endpoint}:`, errorText);
+  throw new Error(
+    `API ${response.status} ${response.statusText} at ${endpoint}: ${errorText}`,
+  );
+}
 
 // Helper for handling API errors with more detail
 function handleApiError(endpoint: string, error: any, status?: number): never {
@@ -42,14 +69,7 @@ export async function fetchLocationSuggestions(
     const response = await fetch(url);
 
     if (!response.ok) {
-      let errorText = response.statusText;
-      try {
-        const errJson = await response.json();
-        errorText = errJson.error || errorText;
-      } catch {
-        /* ignore JSON parse errors */
-      }
-      throw new Error(errorText);
+      await throwDetailedApiError(response, endpoint);
     }
 
     const data = await response.json();
@@ -74,14 +94,7 @@ export async function fetchReverseGeocode(
     const response = await fetch(url);
 
     if (!response.ok) {
-      let errorText = response.statusText;
-      try {
-        const errJson = await response.json();
-        errorText = errJson.error || errorText;
-      } catch {
-        /* swallow */
-      }
-      throw new Error(errorText);
+      await throwDetailedApiError(response, endpoint);
     }
 
     return await response.json();
@@ -108,14 +121,7 @@ export async function fetchCelestialData(
     });
 
     if (!response.ok) {
-      let errorText = response.statusText;
-      try {
-        const errJson = await response.json();
-        errorText = errJson.error || errorText;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(errorText);
+      await throwDetailedApiError(response, endpoint);
     }
 
     return await response.json();
@@ -139,16 +145,8 @@ export async function fetchWeatherData(
     const response = await fetch(url, {
       headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
     });
-
     if (!response.ok) {
-      let errorText = response.statusText;
-      try {
-        const errJson = await response.json();
-        errorText = errJson.error || errorText;
-      } catch {
-        /* swallow */
-      }
-      throw new Error(errorText);
+      await throwDetailedApiError(response, endpoint);
     }
 
     return await response.json();
