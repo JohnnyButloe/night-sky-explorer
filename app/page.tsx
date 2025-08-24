@@ -13,40 +13,169 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 
 // Minimal types for local use
 type Loc = { name: string; lat: number; lon: number } | null;
-type CelestialResp = {
-  _source?: string;
-  timestamp?: string;
-  observer?: { lat: number; lon: number; elev?: number };
+type UiLoc = Loc;
+type UiCelestial = {
   sun?: {
     rise_iso?: string | null;
     set_iso?: string | null;
-    altitude_degrees?: number;
-    azimuth_degrees?: number;
+    altitude_degrees?: number | null;
+    azimuth_degrees?: number | null;
   };
   moon?: {
-    phase_degrees?: number;
+    phase_degrees?: number | null;
     rise_iso?: string | null;
     set_iso?: string | null;
-    altitude_degrees?: number;
-    azimuth_degrees?: number;
+    altitude_degrees?: number | null;
+    azimuth_degrees?: number | null;
   };
   planets?: Record<
     string,
-    { altitude_degrees?: number; azimuth_degrees?: number }
+    { altitude_degrees?: number | null; azimuth_degrees?: number | null }
   >;
 } | null;
 
-type WeatherResp = {
-  temperature?: number; // legacy compat (if you kept it)
-  current?: { temperature_2m?: number; weather_code?: number };
+type UiWeather = {
+  current?: {
+    temperature_2m?: number | null;
+    weather_code?: number | null;
+  } | null;
   hourly?: {
     time?: string[];
     temperature_2m?: number[];
-    relative_humidity_2m?: number[];
-    weather_code?: number[]; // sometimes weathercode
+    weather_code?: number[];
     weathercode?: number[];
   } | null;
 } | null;
+
+type UiObject = {
+  name: string;
+  type: 'Planet' | 'Star' | 'Moon';
+  altitude: number | null;
+  azimuth: number | null;
+  hourlyData: any[];
+  additionalInfo?: Record<string, unknown>;
+};
+
+// Normalize backend payloads to a stable UI model
+function toUiModel(location: Loc, celestial: any, weather: any) {
+  const loc: UiLoc = location
+    ? { name: location.name, lat: location.lat, lon: location.lon }
+    : null;
+
+  const s = celestial?.sun ?? {};
+  const m = celestial?.moon ?? {};
+
+  // Normalize planets (alt/az vs altitude_degrees/azimuth_degrees)
+  const planetsRaw = celestial?.planets ?? {};
+  const planets: Record<
+    string,
+    { altitude_degrees?: number | null; azimuth_degrees?: number | null }
+  > = {};
+  for (const [k, v] of Object.entries(planetsRaw)) {
+    const vv: any = v;
+    planets[k] = {
+      altitude_degrees: vv?.altitude_degrees ?? vv?.altitude ?? vv?.alt ?? null,
+      azimuth_degrees: vv?.azimuth_degrees ?? vv?.azimuth ?? vv?.az ?? null,
+    };
+  }
+
+  const uiCelestial: UiCelestial = {
+    sun: {
+      rise_iso: s?.rise_iso ?? s?.sunrise ?? null,
+      set_iso: s?.set_iso ?? s?.sunset ?? null,
+      altitude_degrees: s?.altitude_degrees ?? s?.altitude ?? null,
+      azimuth_degrees: s?.azimuth_degrees ?? s?.azimuth ?? null,
+    },
+    moon: celestial?.moon
+      ? {
+          rise_iso: m?.rise_iso ?? m?.moonrise ?? null,
+          set_iso: m?.set_iso ?? m?.moonset ?? null,
+          altitude_degrees: m?.altitude_degrees ?? m?.altitude ?? null,
+          azimuth_degrees: m?.azimuth_degrees ?? m?.azimuth ?? null,
+          phase_degrees: m?.phase_degrees ?? m?.moonPhaseDeg ?? null,
+        }
+      : undefined,
+    planets,
+  };
+
+  const uiWeather: UiWeather = weather
+    ? {
+        current: {
+          temperature_2m:
+            weather?.current?.temperature_2m ?? weather?.temperature ?? null,
+          weather_code: weather?.current?.weather_code ?? null,
+        },
+        hourly: weather?.hourly ?? null,
+      }
+    : null;
+
+  // Build one objects array for all consumers
+  const objects: UiObject[] = [];
+
+  // Planets
+  for (const [name, pos] of Object.entries(planets)) {
+    objects.push({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      type: 'Planet',
+      altitude: (pos as any)?.altitude_degrees ?? null,
+      azimuth: (pos as any)?.azimuth_degrees ?? null,
+      hourlyData: [],
+    });
+  }
+
+  // Sun
+  if (uiCelestial?.sun) {
+    objects.push({
+      name: 'Sun',
+      type: 'Star',
+      altitude: uiCelestial.sun.altitude_degrees ?? null,
+      azimuth: uiCelestial.sun.azimuth_degrees ?? null,
+      hourlyData: [],
+    });
+  }
+
+  // Moon
+  if (uiCelestial?.moon) {
+    objects.push({
+      name: 'Moon',
+      type: 'Moon',
+      altitude: uiCelestial.moon.altitude_degrees ?? null,
+      azimuth: uiCelestial.moon.azimuth_degrees ?? null,
+      hourlyData: [],
+      additionalInfo: { phaseDegrees: uiCelestial.moon.phase_degrees },
+    });
+  }
+
+  // Legacy payloads (for CelestialObjectsList)
+  const legacy = loc
+    ? {
+        location: { latitude: loc.lat, longitude: loc.lon },
+        sunrise: uiCelestial?.sun?.rise_iso ?? null,
+        sunset: uiCelestial?.sun?.set_iso ?? null,
+        objects,
+        nightStart: uiCelestial?.sun?.set_iso ?? null,
+        nightEnd: uiCelestial?.sun?.rise_iso ?? null,
+        weather: {},
+      }
+    : null;
+
+  const legacyNoMoon =
+    legacy && Array.isArray(legacy.objects)
+      ? {
+          ...legacy,
+          objects: legacy.objects.filter((o: any) => o?.name !== 'Moon'),
+        }
+      : legacy;
+
+  return {
+    location: loc,
+    celestial: uiCelestial,
+    weather: uiWeather,
+    objects,
+    legacy,
+    legacyNoMoon,
+  };
+}
 
 export default function Home() {
   // === Location chosen by the user (via LocationAutocomplete) ===
@@ -59,6 +188,12 @@ export default function Home() {
 
   // === Hook that fetches from backend whenever location changes ===
   const { celestial, weather, loading, error } = useDashboardData(location);
+
+  // Compose a stable UI model for child components
+  const ui = useMemo(
+    () => toUiModel(location, celestial, weather),
+    [location, celestial, weather],
+  );
 
   // --- Handlers ---
 
@@ -78,7 +213,6 @@ export default function Home() {
   };
 
   const handleDateChange = (date: Date | null) => {
-    // (Future) You can extend useDashboardData to accept a date/iso param.
     if (date) setSelectedDate(date);
   };
 
@@ -88,79 +222,6 @@ export default function Home() {
     setIsSearchCollapsed(false);
     setLocation(null);
   };
-
-  // --- Adapter: compose a legacy-ish object for components that expect "celestialData" ---
-  const legacyCelestialData = useMemo(() => {
-    if (!location || !celestial) return null;
-
-    const objects: any[] = [];
-
-    // Planets
-    const planetEntries = Object.entries(celestial?.planets ?? {});
-    for (const [name, pos] of planetEntries) {
-      objects.push({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        type: 'Planet',
-        altitude: (pos as any)?.altitude_degrees ?? null,
-        azimuth: (pos as any)?.azimuth_degrees ?? null,
-        hourlyData: [] as any[], // leave empty for now; prevents crashes where .some() is used
-      });
-    }
-
-    // Sun + Moon as "objects" for existing UIs that read an array
-    if (celestial?.sun) {
-      objects.push({
-        name: 'Sun',
-        type: 'Star',
-        altitude: celestial.sun.altitude_degrees ?? null,
-        azimuth: celestial.sun.azimuth_degrees ?? null,
-        hourlyData: [],
-      });
-    }
-    if (celestial?.moon) {
-      objects.push({
-        name: 'Moon',
-        type: 'Moon',
-        altitude: celestial.moon.altitude_degrees ?? null,
-        azimuth: celestial.moon.azimuth_degrees ?? null,
-        hourlyData: [],
-        additionalInfo: { phaseDegrees: celestial.moon.phase_degrees },
-      });
-    }
-
-    // Night bounds (approx) — use sunset→sunrise if available
-    const nightStart = celestial?.sun?.set_iso ?? null;
-    const nightEnd = celestial?.sun?.rise_iso ?? null;
-
-    return {
-      location: { latitude: location.lat, longitude: location.lon },
-      sunrise: celestial?.sun?.rise_iso ?? null,
-      sunset: celestial?.sun?.set_iso ?? null,
-      objects,
-      nightStart,
-      nightEnd,
-      // keep optional weather placeholder so legacy components don't crash if they touch it
-      weather: {},
-    } as any;
-  }, [celestial, location]);
-
-  const moonObject = useMemo(() => {
-    return (
-      (legacyCelestialData?.objects ?? []).find(
-        (o: any) => o?.name === 'Moon',
-      ) ?? null
-    );
-  }, [legacyCelestialData]);
-
-  const filteredCelestialData = useMemo(() => {
-    if (!legacyCelestialData) return null;
-    return {
-      ...legacyCelestialData,
-      objects: (legacyCelestialData.objects ?? []).filter(
-        (o: any) => o?.name !== 'Moon',
-      ),
-    };
-  }, [legacyCelestialData]);
 
   // --- UI helpers ---
 
@@ -227,12 +288,20 @@ export default function Home() {
             </div>
             <div className="flex-1">
               <TimeSlider
-                startTime={legacyCelestialData?.nightStart ?? null}
-                endTime={legacyCelestialData?.nightEnd ?? null}
+                startTime={
+                  ui?.celestial?.sun?.set_iso
+                    ? new Date(ui.celestial.sun.set_iso)
+                    : null
+                }
+                endTime={
+                  ui?.celestial?.sun?.rise_iso
+                    ? new Date(ui.celestial.sun.rise_iso)
+                    : null
+                }
                 currentTime={celestialTime}
                 onTimeChange={handleTimeChange}
                 selectedObject={null}
-                celestialObjects={legacyCelestialData?.objects ?? []}
+                celestialObjects={ui?.objects ?? []}
               />
             </div>
           </div>
@@ -241,23 +310,26 @@ export default function Home() {
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
               <Highlights
-                location={location}
-                celestial={celestial as CelestialResp}
-                weather={weather as WeatherResp}
+                location={ui?.location ?? null}
+                celestial={ui?.celestial ?? null}
+                weather={ui?.weather ?? null}
                 currentTime={celestialTime}
               />
             </div>
             <div className="col-span-4">
-              <MoonCard object={moonObject} currentTime={celestialTime} />
+              <MoonCard
+                celestial={{ moon: ui?.celestial?.moon ?? null }}
+                currentTime={celestialTime}
+              />
             </div>
           </div>
 
           {/* Objects List & Sky Conditions */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              {filteredCelestialData && (
+              {ui?.legacyNoMoon && (
                 <CelestialObjectsList
-                  data={filteredCelestialData}
+                  data={ui.legacyNoMoon}
                   currentTime={celestialTime}
                   onTimeChange={setCelestialTime}
                   onObjectSelect={() => {}}
@@ -266,9 +338,9 @@ export default function Home() {
             </div>
             <div className="col-span-4">
               <SkyConditions
-                location={location}
-                celestial={celestial as CelestialResp}
-                weather={weather as WeatherResp}
+                location={ui?.location ?? null}
+                celestial={{ sun: ui?.celestial?.sun }}
+                weather={ui?.weather ?? null}
                 currentTime={celestialTime}
               />
             </div>
