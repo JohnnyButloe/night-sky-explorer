@@ -6,7 +6,9 @@ import type {
 
 // Default to '/api' so the frontend correctly proxies requests to the backend
 // when no explicit API base URL is configured via environment variables.
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
+const BASE_URL =
+  typeof window === 'undefined' ? process.env.API_BASE_URL || '/api' : '/api';
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 // Helper for logging API calls
