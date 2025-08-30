@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { isWithinMinutes } from '@/lib/time';
 
 type Loc = { name: string; lat: number; lon: number } | null;
 
@@ -34,7 +35,15 @@ export default function Highlights({
 }: HighlightsProps) {
   const when =
     typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
-
+  // NEW: Determine if the selected time is near sunrise/sunset (±30 min)
+  const sunrise = celestial?.sun?.rise_iso
+    ? new Date(celestial.sun.rise_iso)
+    : null;
+  const sunset = celestial?.sun?.set_iso
+    ? new Date(celestial.sun.set_iso)
+    : null;
+  const nearSunrise = sunrise ? isWithinMinutes(when, sunrise, 30) : false;
+  const nearSunset = sunset ? isWithinMinutes(when, sunset, 30) : false;
   // Visible planets = altitude > 0 now (simple, robust)
   const visiblePlanets = Object.entries(celestial?.planets ?? {})
     .filter(([, pos]) => (pos?.altitude_degrees ?? -90) > 0)
@@ -67,6 +76,12 @@ export default function Highlights({
         <p>
           <strong>Total Visible Objects:</strong> {totalVisible}
         </p>
+        {(nearSunrise || nearSunset) && (
+          <p className="mt-1">
+            <strong>Now:</strong>
+            {nearSunrise ? 'Around sunrise' : 'Around sunset'}
+          </p>
+        )}
         {visiblePlanets.length > 0 && (
           <div className="mt-2">
             <strong>Visible Planets:</strong>

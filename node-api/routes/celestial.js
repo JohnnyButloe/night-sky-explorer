@@ -30,16 +30,6 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-/**
- * GET /api/celestial?lat=36.85&lon=-75.98&iso=2025-08-24T15:00:00Z
- *
- * Returns Sun/Moon alt-az at the requested time/location,
- * plus sunrise/sunset and moonrise/moonset within ~1 day,
- * and current moon phase.
- *
- * Uses Astronomy Engine functions:
- * - Observer, Equator, Horizon, SearchRiseSet, MoonPhase, AstroTime.
- */
 router.get('/', limiter, async (req, res) => {
   try {
     const { lat, lon, iso } = req.query;
@@ -145,6 +135,41 @@ router.get('/', limiter, async (req, res) => {
     // Moon phase at the requested time (0=new, 180=full).
     const moonPhaseDeg = Astronomy.MoonPhase(when);
 
+    const bodyNames = [
+      'Mercury',
+      'Venus',
+      'Mars',
+      'Jupiter',
+      'Saturn',
+      'Uranus',
+      'Neptune',
+      'Moon',
+    ];
+
+    const objects = bodyNames
+      .map((name) => {
+        const body = Astronomy.Body[name];
+        const eq = Astronomy.Equator(body, when, observer, true, true);
+        const hor = Astronomy.Horizon(when, observer, eq.ra, eq.dec, 'normal');
+
+        const rise = Astronomy.SearchRiseSet(body, observer, +1, tStart, 1);
+        const set = Astronomy.SearchRiseSet(body, observer, -1, tStart, 1);
+
+        return {
+          name,
+          type: name === 'Moon' ? 'moon' : 'planet',
+          altitude: hor.altitude,
+          azimuth: hor.azimuth,
+          rise: rise?.date?.toISOString() ?? null,
+          set: set?.date?.toISOString() ?? null,
+          isVisible: hor.altitude > 0,
+        };
+      })
+      .sort(
+        (a, b) =>
+          Number(b.isVisible) - Number(a.isVisible) || b.altitude - a.altitude,
+      );
+
     const payload = {
       request: {
         lat: latNum,
@@ -164,6 +189,7 @@ router.get('/', limiter, async (req, res) => {
         moonrise: riseMoon?.date?.toISOString() ?? null,
         moonset: setMoon?.date?.toISOString() ?? null,
       },
+      objects, // planets + moon with positions and rise/set
       // future: add planets, twilight times, etc.
     };
 
