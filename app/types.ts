@@ -87,3 +87,10 @@ export interface CelestialData {
   sunset: string;
   sunrise: string;
 }
+export type MoonData = {
+  phaseDeg?: number | null;
+  altitudeDeg?: number | null;
+  azimuthDeg?: number | null;
+  riseIso?: string | null;
+  setIso?: string | null;
+};

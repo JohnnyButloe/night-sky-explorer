@@ -2,20 +2,11 @@
 
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { parseDate } from '@/app/utils/dateUtils';
-
-type Celestial = {
-  moon?: {
-    phase_degrees?: number;
-    altitude_degrees?: number;
-    azimuth_degrees?: number;
-    rise_iso?: string | null;
-    set_iso?: string | null;
-  } | null;
-} | null;
+import { parsedate } from '@/app/utils/dateUtils';
+import type { MoonData } from '@/app/types';
 
 interface MoonCardProps {
-  celestial: Celestial;
+  moon: MoonData | null;
   currentTime: Date | string;
 }
 
@@ -32,10 +23,8 @@ function phaseName(phaseDeg?: number): string | null {
   if (p < 337.5) return 'Waning Crescent';
   return 'New Moon';
 }
-
-export default function MoonCard({ celestial, currentTime }: MoonCardProps) {
+export default function MoonCard({ moon, currentTime }: MoonCardProps) {
   const now = parseDate(currentTime);
-  const moon = celestial?.moon ?? null;
 
   if (!moon) {
     return (
@@ -52,26 +41,22 @@ export default function MoonCard({ celestial, currentTime }: MoonCardProps) {
   }
 
   const altitude =
-    typeof moon.altitude_degrees === 'number'
-      ? moon.altitude_degrees.toFixed(1)
-      : '—';
+    typeof moon.altitudeDeg === 'number' ? moon.altitudeDeg.toFixed(1) : '—';
   const azimuth =
-    typeof moon.azimuth_degrees === 'number'
-      ? moon.azimuth_degrees.toFixed(1)
-      : '—';
-  const rise = moon.rise_iso
+    typeof moon.azimuthDeg === 'number' ? moon.azimuthDeg.toFixed(1) : '—';
+  const rise = moon.riseIso
     ? new Date(moon.rise_iso).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       })
     : 'N/A';
-  const set = moon.set_iso
+  const set = moon.setiso
     ? new Date(moon.set_iso).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       })
     : 'N/A';
-  const phase = phaseName(moon.phase_degrees);
+  const phase = phaseName(moon.phasedegrees);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm p-3 w-full">

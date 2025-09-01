@@ -10,6 +10,7 @@ import CelestialObjectsList from './components/CelestialObjectsList';
 import SkyConditions from './components/SkyConditions';
 import TimeSlider from './components/TimeSlider';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { mapMoon } from '@/app/utils/api'; // adjust path if your api.ts lives elsewhere
 
 // Minimal types for local use
 type Loc = { name: string; lat: number; lon: number } | null;
@@ -318,7 +319,7 @@ export default function Home() {
             </div>
             <div className="col-span-4">
               <MoonCard
-                celestial={{ moon: ui?.celestial?.moon ?? null }}
+                moon={mapMoon(ui?.celestial?.moon ?? null)}
                 currentTime={celestialTime}
               />
             </div>

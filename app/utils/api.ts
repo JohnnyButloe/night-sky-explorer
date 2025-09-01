@@ -2,6 +2,7 @@ import type {
   LocationSuggestion,
   WeatherData,
   CelestialData,
+  MoonData,
 } from '@/app/types';
 
 // Default to '/api' so the frontend correctly proxies requests to the backend
@@ -56,7 +57,35 @@ function handleApiError(endpoint: string, error: any, status?: number): never {
     } ${error.message}`,
   );
 }
+/**
+ * mapMoon
+ * Accepts various moon payload shapes and returns a stable MoonData VM for the UI.
+ * Handles snake_case and camelCase so upstream changes don't ripple into components.
+ */
+export function mapMoon(raw: any): MoonData | null {
+  if (!raw) return null;
 
+  return {
+    // phase
+    phaseDeg:
+      raw.phaseDeg ??
+      raw.phase_degrees ??
+      raw.moonPhaseDeg ??
+      raw.moon_phase_deg ??
+      null,
+
+    // position
+    altitudeDeg:
+      raw.altitudeDeg ?? raw.altitude_degrees ?? raw.altitude ?? null,
+
+    azimuthDeg: raw.azimuthDeg ?? raw.azimuth_degrees ?? raw.azimuth ?? null,
+
+    // rise/set
+    riseIso: raw.riseIso ?? raw.rise_iso ?? raw.moonrise ?? null,
+
+    setIso: raw.setIso ?? raw.set_iso ?? raw.moonset ?? null,
+  };
+}
 /**
  * Fetch location search suggestions.
  */
@@ -108,51 +137,120 @@ export async function fetchReverseGeocode(
 /**
  * Fetch celestial positions & times for a given date.
  */
+export type CelestialHourly = {
+  time: string;
+  altitude: number;
+  azimuth: number;
+};
+export type CelestialObject = {
+  id: string;
+  name: string;
+  type: 'Star' | 'Moon' | 'Planet' | 'Other';
+  hourlyData: CelestialHourly[]; // UI expects at least one entry
+  additionalInfo: {
+    riseTime?: string | null;
+    setTime?: string | null;
+    bestViewingTime?: string | null;
+    moonPhaseDeg?: number | null;
+  };
+};
+
+export type CelestialData = {
+  location: { latitude: number; longitude: number; displayName?: string };
+  nightStart: string | null; // sunset ISO
+  nightEnd: string | null; // sunrise ISO (next or same)
+  objects: CelestialObject[];
+  // UI also sets .weather later in page.tsx
+};
+
 export async function fetchCelestialData(
-  latitude: number,
-  longitude: number,
-  date: string,
+  lat: number,
+  lon: number,
+  isoDate: string,
 ): Promise<CelestialData> {
-  const endpoint = `/celestial?lat=${latitude}&lon=${longitude}&time=${date}`;
-  const url = `${BASE_URL}${endpoint}`;
-  logApiCall(endpoint, { latitude, longitude, date });
-
-  try {
-    const response = await fetch(url, {
-      headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
-    });
-
-    if (!response.ok) {
-      await throwDetailedApiError(response, endpoint);
-    }
-
-    return await response.json();
-  } catch (err: any) {
-    return handleApiError(endpoint, err, err.status);
+  const qs = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    iso: isoDate,
+  });
+  const res = await fetch(`/api/celestial?${qs.toString()}`, {
+    headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Celestial fetch failed: ${res.status}`);
   }
+  const raw = await res.json();
+
+  // Build minimal objects[] so the list has data to render.
+  const iso = raw?.request?.iso ?? isoDate;
+  const sun: CelestialObject = {
+    id: 'sun',
+    name: 'Sun',
+    type: 'Star',
+    hourlyData: [
+      {
+        time: iso,
+        altitude: raw?.sun?.altitude ?? -90,
+        azimuth: raw?.sun?.azimuth ?? 0,
+      },
+    ],
+    additionalInfo: {
+      riseTime: raw?.sun?.sunrise ?? null,
+      setTime: raw?.sun?.sunset ?? null,
+      bestViewingTime: null,
+    },
+  };
+
+  const moon: CelestialObject = {
+    id: 'moon',
+    name: 'Moon',
+    type: 'Moon',
+    hourlyData: [
+      {
+        time: iso,
+        altitude: raw?.moon?.altitude ?? -90,
+        azimuth: raw?.moon?.azimuth ?? 0,
+      },
+    ],
+    additionalInfo: {
+      riseTime: raw?.moon?.moonrise ?? null,
+      setTime: raw?.moon?.moonset ?? null,
+      moonPhaseDeg: raw?.moon?.moonPhaseDeg ?? null,
+      bestViewingTime: null,
+    },
+  };
+
+  return {
+    location: { latitude: lat, longitude: lon },
+    nightStart: raw?.sun?.sunset ?? null,
+    nightEnd: raw?.sun?.sunrise ?? null,
+    objects: [sun, moon],
+  };
 }
 
-/**
- * Fetch current weather & forecast for a location.
- */
-export async function fetchWeatherData(
-  latitude: number,
-  longitude: number,
-): Promise<WeatherData> {
-  const endpoint = `/weather?lat=${latitude}&lon=${longitude}`;
-  const url = `${BASE_URL}${endpoint}`;
-  logApiCall(endpoint, { latitude, longitude });
+export async function fetchWeatherData(lat: number, lon: number) {
+  const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+  const res = await fetch(`/api/weather?${qs.toString()}`, {
+    headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
+  const data = await res.json();
 
-  try {
-    const response = await fetch(url, {
-      headers: API_KEY ? { 'x-api-key': API_KEY } : undefined,
-    });
-    if (!response.ok) {
-      await throwDetailedApiError(response, endpoint);
-    }
-
-    return await response.json();
-  } catch (err: any) {
-    return handleApiError(endpoint, err, err.status);
-  }
+  // Normalize to what your components read today
+  return {
+    temperature: data?.current?.temperature_2m ?? data?.temperature ?? null,
+    conditions: data?.weathercode ?? null,
+    currentCloudCover: data?.current?.cloudcover ?? 100, // fallback
+    currentVisibility: data?.current?.visibility ?? 0, // meters (fallback)
+    lightPollution: 5, // placeholder
+    hourlyForecast: Array.isArray(data?.hourly?.time)
+      ? data.hourly.time.map((t: string, i: number) => ({
+          time: t,
+          cloudCover: data?.hourly?.cloudcover?.[i] ?? null,
+          rainProbability: data?.hourly?.precipitation_probability?.[i] ?? null,
+        }))
+      : [],
+  };
 }
