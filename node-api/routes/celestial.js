@@ -122,14 +122,14 @@ router.get('/', limiter, async (req, res) => {
       observer,
       +1,
       tStart,
-      1,
+      2,
     );
     const setMoon = Astronomy.SearchRiseSet(
       Astronomy.Body.Moon,
       observer,
       -1,
       tStart,
-      1,
+      2,
     );
 
     // Moon phase at the requested time (0=new, 180=full).
@@ -152,16 +152,19 @@ router.get('/', limiter, async (req, res) => {
         const eq = Astronomy.Equator(body, when, observer, true, true);
         const hor = Astronomy.Horizon(when, observer, eq.ra, eq.dec, 'normal');
 
-        const rise = Astronomy.SearchRiseSet(body, observer, +1, tStart, 1);
-        const set = Astronomy.SearchRiseSet(body, observer, -1, tStart, 1);
+        // Rise/Set for THIS body (Sun, Moon, planets)
+        const riseEvt = Astronomy.SearchRiseSet(body, observer, +1, tStart, 2);
+        const setEvt = Astronomy.SearchRiseSet(body, observer, -1, tStart, 2);
 
         return {
           name,
           type: name === 'Moon' ? 'moon' : 'planet',
           altitude: hor.altitude,
           azimuth: hor.azimuth,
-          rise: rise?.date?.toISOString() ?? null,
-          set: set?.date?.toISOString() ?? null,
+          // rise: rise?.date?.toISOString() ?? null,
+          // set: set?.date?.toISOString() ?? null,
+          rise: riseEvt?.date?.toISOString() ?? null,
+          set: setEvt?.date?.toISOString() ?? null,
           isVisible: hor.altitude > 0,
         };
       })

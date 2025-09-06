@@ -2,15 +2,38 @@
 
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { parsedate } from '@/app/utils/dateUtils';
-import type { MoonData } from '@/app/types';
+
+type AnyMoon =
+  | {
+      // per-object shape
+      name?: string;
+      altitude?: number | null;
+      azimuth?: number | null;
+      rise?: string | null;
+      set?: string | null;
+      // top-level moon shape
+      moonrise?: string | null;
+      moonset?: string | null;
+      moonPhaseDeg?: number | null;
+      // legacy/snake shapes we saw in repo
+      altitude_degrees?: number | null;
+      azimuth_degrees?: number | null;
+      rise_iso?: string | null;
+      set_iso?: string | null;
+      phase_degrees?: number | null;
+    }
+  | null
+  | undefined;
 
 interface MoonCardProps {
-  moon: MoonData | null;
+  /** Pass the Moon entry from `celestialData.objects` (preferred today). */
+  object?: AnyMoon;
+  /** Or pass the top-level `celestial.moon`. */
+  moon?: AnyMoon;
   currentTime: Date | string;
 }
 
-function phaseName(phaseDeg?: number): string | null {
+function phaseName(phaseDeg?: number | null): string | null {
   if (typeof phaseDeg !== 'number') return null;
   const p = ((phaseDeg % 360) + 360) % 360;
   if (p < 22.5) return 'New Moon';
@@ -23,10 +46,16 @@ function phaseName(phaseDeg?: number): string | null {
   if (p < 337.5) return 'Waning Crescent';
   return 'New Moon';
 }
-export default function MoonCard({ moon, currentTime }: MoonCardProps) {
-  const now = parseDate(currentTime);
 
-  if (!moon) {
+const firstDefined = <T,>(...vals: (T | null | undefined)[]) =>
+  vals.find((v) => v !== undefined && v !== null);
+
+export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
+  const now =
+    typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
+  const m = object ?? moon ?? null;
+
+  if (!m) {
     return (
       <Card className="bg-card/50 backdrop-blur-sm p-3 w-full h-full">
         <CardHeader className="pb-1">
@@ -40,23 +69,37 @@ export default function MoonCard({ moon, currentTime }: MoonCardProps) {
     );
   }
 
-  const altitude =
-    typeof moon.altitudeDeg === 'number' ? moon.altitudeDeg.toFixed(1) : '—';
-  const azimuth =
-    typeof moon.azimuthDeg === 'number' ? moon.azimuthDeg.toFixed(1) : '—';
-  const rise = moon.riseIso
-    ? new Date(moon.rise_iso).toLocaleTimeString([], {
+  const altitude = firstDefined(m.altitude, m.altitude_degrees) as
+    | number
+    | undefined;
+  const azimuth = firstDefined(m.azimuth, m.azimuth_degrees) as
+    | number
+    | undefined;
+
+  const riseIso = firstDefined(m.rise, m.moonrise, m.rise_iso) as
+    | string
+    | undefined;
+  const setIso = firstDefined(m.set, m.moonset, m.set_iso) as
+    | string
+    | undefined;
+
+  const rise = riseIso
+    ? new Date(riseIso).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       })
     : 'N/A';
-  const set = moon.setiso
-    ? new Date(moon.set_iso).toLocaleTimeString([], {
+  const set = setIso
+    ? new Date(setIso).toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
       })
     : 'N/A';
-  const phase = phaseName(moon.phasedegrees);
+
+  const phaseDeg = firstDefined(m.moonPhaseDeg, m.phase_degrees) as
+    | number
+    | undefined;
+  const phase = phaseName(phaseDeg ?? undefined);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm p-3 w-full">
@@ -70,10 +113,12 @@ export default function MoonCard({ moon, currentTime }: MoonCardProps) {
           </p>
         )}
         <p>
-          <strong>Altitude:</strong> {altitude}°
+          <strong>Altitude:</strong>{' '}
+          {typeof altitude === 'number' ? altitude.toFixed(1) : '—'}°
         </p>
         <p>
-          <strong>Azimuth:</strong> {azimuth}°
+          <strong>Azimuth:</strong>{' '}
+          {typeof azimuth === 'number' ? azimuth.toFixed(1) : '—'}°
         </p>
         <p>
           <strong>Rise Time:</strong> {rise}
