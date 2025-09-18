@@ -135,7 +135,45 @@ router.get('/', limiter, async (req, res) => {
     // Moon phase at the requested time (0=new, 180=full).
     const moonPhaseDeg = Astronomy.MoonPhase(when);
 
-    const bodyNames = [
+    // const bodyNames = [
+    //   'Mercury',
+    //   'Venus',
+    //   'Mars',
+    //   'Jupiter',
+    //   'Saturn',
+    //   'Uranus',
+    //   'Neptune',
+    //   'Moon',
+    // ];
+
+    // const objects = bodyNames
+    //   .map((name) => {
+    //     const body = Astronomy.Body[name];
+    //     const eq = Astronomy.Equator(body, when, observer, true, true);
+    //     const hor = Astronomy.Horizon(when, observer, eq.ra, eq.dec, 'normal');
+
+    //     // Rise/Set for THIS body (Sun, Moon, planets)
+    //     const riseEvt = Astronomy.SearchRiseSet(body, observer, +1, tStart, 2);
+    //     const setEvt = Astronomy.SearchRiseSet(body, observer, -1, tStart, 2);
+
+    //     return {
+    //       name,
+    //       type: name === 'Moon' ? 'moon' : 'planet',
+    //       altitude: hor.altitude,
+    //       azimuth: hor.azimuth,
+    //       // rise: rise?.date?.toISOString() ?? null,
+    //       // set: set?.date?.toISOString() ?? null,
+    //       rise: riseEvt?.date?.toISOString() ?? null,
+    //       set: setEvt?.date?.toISOString() ?? null,
+    //       isVisible: hor.altitude > 0,
+    //     };
+    //   })
+    //   .sort(
+    //     (a, b) =>
+    //       Number(b.isVisible) - Number(a.isVisible) || b.altitude - a.altitude,
+    //   );
+    // Stable contract: `planets` excludes Moon (Moon is returned separately in `moon`)
+    const planetNames = [
       'Mercury',
       'Venus',
       'Mars',
@@ -143,34 +181,38 @@ router.get('/', limiter, async (req, res) => {
       'Saturn',
       'Uranus',
       'Neptune',
-      'Moon',
     ];
 
-    const objects = bodyNames
+    const planets = planetNames
       .map((name) => {
         const body = Astronomy.Body[name];
         const eq = Astronomy.Equator(body, when, observer, true, true);
         const hor = Astronomy.Horizon(when, observer, eq.ra, eq.dec, 'normal');
 
-        // Rise/Set for THIS body (Sun, Moon, planets)
+        // Next rise/set for this planet (within ~2 days search window)
         const riseEvt = Astronomy.SearchRiseSet(body, observer, +1, tStart, 2);
         const setEvt = Astronomy.SearchRiseSet(body, observer, -1, tStart, 2);
 
         return {
           name,
-          type: name === 'Moon' ? 'moon' : 'planet',
-          altitude: hor.altitude,
+          type: 'Planet',
+          azimuthDeg: hor.azimuth, // degrees (clockwise from North)
+          altitudeDeg: hor.altitude, // degrees above horizon
+          riseISO: riseEvt?.date?.toISOString() ?? null,
+          setISO: setEvt?.date?.toISOString() ?? null,
+          isVisible: hor.altitude > 0,
+
+          // (optional) temporary legacy fields for a smooth UI transition:
           azimuth: hor.azimuth,
-          // rise: rise?.date?.toISOString() ?? null,
-          // set: set?.date?.toISOString() ?? null,
+          altitude: hor.altitude,
           rise: riseEvt?.date?.toISOString() ?? null,
           set: setEvt?.date?.toISOString() ?? null,
-          isVisible: hor.altitude > 0,
         };
       })
       .sort(
         (a, b) =>
-          Number(b.isVisible) - Number(a.isVisible) || b.altitude - a.altitude,
+          Number(b.isVisible) - Number(a.isVisible) ||
+          b.altitudeDeg - a.altitudeDeg,
       );
 
     const payload = {
@@ -180,19 +222,29 @@ router.get('/', limiter, async (req, res) => {
         iso: when.toISOString(),
       },
       sun: {
-        altitude: sunHor.altitude, // degrees
-        azimuth: sunHor.azimuth, // degrees
+        altitudeDeg: sunHor.altitude,
+        azimuthDeg: sunHor.azimuth,
+        sunriseISO: riseSun?.date?.toISOString() ?? null,
+        sunsetISO: setSun?.date?.toISOString() ?? null,
+        // legacy (optional)
+        altitude: sunHor.altitude,
+        azimuth: sunHor.azimuth,
         sunrise: riseSun?.date?.toISOString() ?? null,
         sunset: setSun?.date?.toISOString() ?? null,
       },
       moon: {
-        altitude: moonHor.altitude, // degrees
-        azimuth: moonHor.azimuth, // degrees
-        moonPhaseDeg, // 0=new, 90=first quarter, 180=full, 270=last quarter
+        altitudeDeg: moonHor.altitude,
+        azimuthDeg: moonHor.azimuth,
+        moonPhaseDeg, // 0=new, 180=full
+        moonriseISO: riseMoon?.date?.toISOString() ?? null,
+        moonsetISO: setMoon?.date?.toISOString() ?? null,
+        // legacy (optional)
+        altitude: moonHor.altitude,
+        azimuth: moonHor.azimuth,
         moonrise: riseMoon?.date?.toISOString() ?? null,
         moonset: setMoon?.date?.toISOString() ?? null,
       },
-      objects, // planets + moon with positions and rise/set
+      planets, // planets + moon with positions and rise/set
       // future: add planets, twilight times, etc.
     };
 

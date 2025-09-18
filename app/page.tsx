@@ -65,17 +65,20 @@ function toUiModel(location: Loc, celestial: any, weather: any) {
   const s = celestial?.sun ?? {};
   const m = celestial?.moon ?? {};
 
-  // Normalize planets (alt/az vs altitude_degrees/azimuth_degrees)
-  const planetsRaw = celestial?.planets ?? {};
+  // Normalize planets (backend returns an ARRAY of { name, azimuthDeg, altitudeDeg, ... })
+  const planetsArray: any[] = Array.isArray(celestial?.planets)
+    ? celestial.planets
+    : [];
+  // Keep a record for components that expect it
   const planets: Record<
     string,
     { altitude_degrees?: number | null; azimuth_degrees?: number | null }
   > = {};
-  for (const [k, v] of Object.entries(planetsRaw)) {
-    const vv: any = v;
-    planets[k] = {
-      altitude_degrees: vv?.altitude_degrees ?? vv?.altitude ?? vv?.alt ?? null,
-      azimuth_degrees: vv?.azimuth_degrees ?? vv?.azimuth ?? vv?.az ?? null,
+  for (const p of planetsArray) {
+    const key = (p?.name ?? '').toLowerCase();
+    planets[key] = {
+      altitude_degrees: p?.altitudeDeg ?? p?.altitude ?? null,
+      azimuth_degrees: p?.azimuthDeg ?? p?.azimuth ?? null,
     };
   }
 
@@ -327,14 +330,12 @@ export default function Home() {
           {/* Objects List & Sky Conditions */}
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-8">
-              {ui?.legacyNoMoon && (
-                <CelestialObjectsList
-                  data={ui.legacyNoMoon}
-                  currentTime={celestialTime}
-                  onTimeChange={setCelestialTime}
-                  onObjectSelect={() => {}}
-                />
-              )}
+              <CelestialObjectsList
+                // Option 1: show all objects (Sun/Moon/Planets)
+                // objects={ui?.objects ?? []}
+                // Option 2: planets only (most common)
+                objects={(ui?.objects ?? []).filter((o) => o.type === 'Planet')}
+              />
             </div>
             <div className="col-span-4">
               <SkyConditions

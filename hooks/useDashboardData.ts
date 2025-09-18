@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { toPlanetRow } from '../lib/astroFormat';
 
 type Location = { name: string; lat: number; lon: number } | null;
 
@@ -10,6 +11,14 @@ export function useDashboardData(location: Location) {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Normalize planets for the UI (Dir/Alt/Rise/Set ready to render)
+  const planets = useMemo(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Support either shape: { celestial: { planets } } or { planets }
+    const raw =
+      (celestial && (celestial.planets ?? celestial?.celestial?.planets)) ?? [];
+    return raw.map((p: any) => toPlanetRow(p, tz));
+  }, [celestial]);
 
   // If you set a Next.js rewrite: use '' and call /api/... directly.
   const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -67,5 +76,5 @@ export function useDashboardData(location: Location) {
     return () => controller.abort();
   }, [location, base, headers]);
 
-  return { celestial, weather, loading, error };
+  return { celestial, weather, planets, loading, error };
 }

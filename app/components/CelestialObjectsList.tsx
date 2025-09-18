@@ -6,10 +6,15 @@ import * as React from 'react';
 type CelestialObject = {
   name: string;
   type: 'Planet' | 'Moon' | 'Other';
+  // Raw fields returned by backend (numbers + ISO times)
   altitude: number | null;
   azimuth: number | null;
-  rise: string | null;
-  set: string | null;
+  rise: string | null; // may be ISO
+  set: string | null; // may be ISO
+  // Optional, display-ready fields returned by the hook mapper
+  // (let the component render without guessing)
+  alt?: string; // e.g., "23.4°"
+  direction?: string; // e.g., "WSW"
   isVisible?: boolean | null;
 };
 
@@ -62,13 +67,17 @@ export function CelestialObjectsList({
       return ba - aa; // higher altitude next
     });
 
-  const fmtTime = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '—';
+  const fmtTime = (val: string | null) => {
+    if (!val) return '-';
+    if (/\d{4}-\d{2}-\d{2}T/.test(val)) {
+      return new Date(val).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+    return val; // assume already formatted
+  };
 
   const azToCompass = (deg: number | null) => {
     if (deg == null || Number.isNaN(deg)) return '—';
@@ -84,9 +93,28 @@ export function CelestialObjectsList({
 
       <ul className="divide-y">
         {list.map((o) => {
-          const visible = !!o.isVisible;
-          const alt = o.altitude ?? null;
-          const dir = azToCompass(o.azimuth);
+          const inferredAltNum =
+            o.altitude ??
+            (typeof (o as any).alt === 'string'
+              ? parseFloat((o as any).alt)
+              : undefined);
+          const visible =
+            typeof o.isVisible === 'boolean'
+              ? o.isVisible
+              : (inferredAltNum ?? -90) > 0;
+
+          // Direction may be precomputed by the hook; otherwise convert azimuth->compass
+          const dirText = (o as any).direction ?? azToCompass(o.azimuth);
+
+          // Altitude may be a display string or a number
+          const altText =
+            typeof (o as any).alt === 'string'
+              ? (o as any).alt
+              : o.altitude == null
+                ? '—'
+                : `${o.altitude.toFixed(0)}°`;
+
+          // Times may be ISO or already formatted; fmtTime handles both
           const rise = fmtTime(o.rise);
           const set = fmtTime(o.set);
 
@@ -110,9 +138,9 @@ export function CelestialObjectsList({
                   )}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  <span>Dir: {dir}</span>
+                  <span>Dir: {dirText}</span>
                   <span className="mx-2">•</span>
-                  <span>Alt: {alt == null ? '—' : `${alt.toFixed(0)}°`}</span>
+                  <span>Alt: {altText}</span>
                   <span className="mx-2">•</span>
                   <span>Rise: {rise}</span>
                   <span className="mx-2">•</span>
