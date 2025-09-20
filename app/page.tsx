@@ -52,6 +52,8 @@ type UiObject = {
   type: 'Planet' | 'Star' | 'Moon';
   altitude: number | null;
   azimuth: number | null;
+  rise?: string | null;
+  set?: string | null;
   hourlyData: any[];
   additionalInfo?: Record<string, unknown>;
 };
@@ -72,13 +74,20 @@ function toUiModel(location: Loc, celestial: any, weather: any) {
   // Keep a record for components that expect it
   const planets: Record<
     string,
-    { altitude_degrees?: number | null; azimuth_degrees?: number | null }
+    {
+      altitude_degrees?: number | null;
+      azimuth_degrees?: number | null;
+      rise_iso?: string | null;
+      set_iso?: string | null;
+    }
   > = {};
   for (const p of planetsArray) {
     const key = (p?.name ?? '').toLowerCase();
     planets[key] = {
       altitude_degrees: p?.altitudeDeg ?? p?.altitude ?? null,
       azimuth_degrees: p?.azimuthDeg ?? p?.azimuth ?? null,
+      rise_iso: p?.riseISO ?? p?.rise_iso ?? null,
+      set_iso: p?.setISO ?? p?.set_iso ?? null,
     };
   }
 
@@ -122,6 +131,8 @@ function toUiModel(location: Loc, celestial: any, weather: any) {
       type: 'Planet',
       altitude: (pos as any)?.altitude_degrees ?? null,
       azimuth: (pos as any)?.azimuth_degrees ?? null,
+      rise: (pos as any)?.rise_iso ?? null,
+      set: (pos as any)?.set_iso ?? null,
       hourlyData: [],
     });
   }

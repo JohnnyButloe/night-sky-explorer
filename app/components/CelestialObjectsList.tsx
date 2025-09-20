@@ -1,4 +1,3 @@
-// components/CelestialObjectsList.tsx
 'use client';
 
 import * as React from 'react';
@@ -67,10 +66,17 @@ export function CelestialObjectsList({
       return ba - aa; // higher altitude next
     });
 
-  const fmtTime = (val: string | null) => {
+  const fmtTime = (val: string | Date | null) => {
     if (!val) return '-';
-    if (/\d{4}-\d{2}-\d{2}T/.test(val)) {
+    if (typeof val === 'string' && /\d{4}-\d{2}-\d{2}T/.test(val)) {
       return new Date(val).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+    if (val instanceof Date) {
+      return val.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
