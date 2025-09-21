@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import DatePicker from '@/app/components/ui/DatePicker';
 import LocationAutocomplete from './components/LocationAutocomplete';
 import Highlights from './components/Highlights';
 import MoonCard from './components/MoonCard';
 import CelestialObjectsList from './components/CelestialObjectsList';
 import SkyConditions from './components/SkyConditions';
-import TimeSlider from './components/TimeSlider';
+import { TimeProvider, useTime } from '@/hooks/useTime';
+import { getTimeZoneForCoords } from '@/lib/time';
+import DateTimePicker from '@/components/DateTimePicker';
 import { useDashboardData } from '@/hooks/useDashboardData';
 
 // Minimal types for local use
@@ -191,13 +192,12 @@ function toUiModel(location: Loc, celestial: any, weather: any) {
   };
 }
 
-export default function Home() {
+function HomePage() {
   // === Location chosen by the user (via LocationAutocomplete) ===
   const [location, setLocation] = useState<Loc>(null);
 
   // === Date/Time controls ===
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [celestialTime, setCelestialTime] = useState<Date>(new Date());
+  const { setTimeZone, timeZone, selectedDateTime, now } = useTime();
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
 
   // === Hook that fetches from backend whenever location changes ===
@@ -220,17 +220,9 @@ export default function Home() {
     setLocation({ name: displayName, lat: latitude, lon: longitude });
     setIsSearchCollapsed(true);
 
-    // Reset date/time to now
-    const now = new Date();
-    setSelectedDate(now);
-    setCelestialTime(now);
+    const tz = getTimeZoneForCoords(latitude, longitude);
+    setTimeZone(tz);
   };
-
-  const handleDateChange = (date: Date | null) => {
-    if (date) setSelectedDate(date);
-  };
-
-  const handleTimeChange = (time: Date) => setCelestialTime(time);
 
   const handleChangeLocation = () => {
     setIsSearchCollapsed(false);
@@ -295,29 +287,9 @@ export default function Home() {
       {/* Dashboard */}
       {location && !loading && !error && (
         <div className="w-full max-w-7xl space-y-6">
-          {/* Date & Time */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="w-1/3 min-w-[200px]">
-              <DatePicker selected={selectedDate} onChange={handleDateChange} />
-            </div>
-            <div className="flex-1">
-              <TimeSlider
-                startTime={
-                  ui?.celestial?.sun?.set_iso
-                    ? new Date(ui.celestial.sun.set_iso)
-                    : null
-                }
-                endTime={
-                  ui?.celestial?.sun?.rise_iso
-                    ? new Date(ui.celestial.sun.rise_iso)
-                    : null
-                }
-                currentTime={celestialTime}
-                onTimeChange={handleTimeChange}
-                selectedObject={null}
-                celestialObjects={ui?.objects ?? []}
-              />
-            </div>
+          {/* Date & Time (single control for both) */}
+          <div className="flex items-center gap-4">
+            <DateTimePicker />
           </div>
 
           {/* Highlights & Moon */}
@@ -327,13 +299,13 @@ export default function Home() {
                 location={ui?.location ?? null}
                 celestial={ui?.celestial ?? null}
                 weather={ui?.weather ?? null}
-                currentTime={celestialTime}
+                currentTime={(selectedDateTime ?? now)!}
               />
             </div>
             <div className="col-span-4">
               <MoonCard
                 moon={ui?.celestial?.moon ?? null}
-                currentTime={celestialTime}
+                currentTime={(selectedDateTime ?? now)!}
               />
             </div>
           </div>
@@ -353,12 +325,20 @@ export default function Home() {
                 location={ui?.location ?? null}
                 celestial={{ sun: ui?.celestial?.sun }}
                 weather={ui?.weather ?? null}
-                currentTime={celestialTime}
+                currentTime={(selectedDateTime ?? now)!}
               />
             </div>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <TimeProvider>
+      <HomePage />
+    </TimeProvider>
   );
 }

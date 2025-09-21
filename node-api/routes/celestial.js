@@ -135,44 +135,6 @@ router.get('/', limiter, async (req, res) => {
     // Moon phase at the requested time (0=new, 180=full).
     const moonPhaseDeg = Astronomy.MoonPhase(when);
 
-    // const bodyNames = [
-    //   'Mercury',
-    //   'Venus',
-    //   'Mars',
-    //   'Jupiter',
-    //   'Saturn',
-    //   'Uranus',
-    //   'Neptune',
-    //   'Moon',
-    // ];
-
-    // const objects = bodyNames
-    //   .map((name) => {
-    //     const body = Astronomy.Body[name];
-    //     const eq = Astronomy.Equator(body, when, observer, true, true);
-    //     const hor = Astronomy.Horizon(when, observer, eq.ra, eq.dec, 'normal');
-
-    //     // Rise/Set for THIS body (Sun, Moon, planets)
-    //     const riseEvt = Astronomy.SearchRiseSet(body, observer, +1, tStart, 2);
-    //     const setEvt = Astronomy.SearchRiseSet(body, observer, -1, tStart, 2);
-
-    //     return {
-    //       name,
-    //       type: name === 'Moon' ? 'moon' : 'planet',
-    //       altitude: hor.altitude,
-    //       azimuth: hor.azimuth,
-    //       // rise: rise?.date?.toISOString() ?? null,
-    //       // set: set?.date?.toISOString() ?? null,
-    //       rise: riseEvt?.date?.toISOString() ?? null,
-    //       set: setEvt?.date?.toISOString() ?? null,
-    //       isVisible: hor.altitude > 0,
-    //     };
-    //   })
-    //   .sort(
-    //     (a, b) =>
-    //       Number(b.isVisible) - Number(a.isVisible) || b.altitude - a.altitude,
-    //   );
-    // Stable contract: `planets` excludes Moon (Moon is returned separately in `moon`)
     const planetNames = [
       'Mercury',
       'Venus',

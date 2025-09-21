@@ -4,6 +4,7 @@ import type {
   CelestialData,
   MoonData,
 } from '@/app/types';
+import { toUTCISO } from '@/lib/time'; // convert location-zoned time to UTC ISO
 
 // Default to '/api' so the frontend correctly proxies requests to the backend
 // when no explicit API base URL is configured via environment variables.
@@ -166,7 +167,8 @@ export type CelestialData = {
 export async function fetchCelestialData(
   lat: number,
   lon: number,
-  isoDate: string,
+  zonedDate: Date | null,
+  tz: string | null,
 ): Promise<CelestialData> {
   const qs = new URLSearchParams({
     lat: String(lat),
