@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { useTime } from '@/hooks/useTime';
+import { formatZoned } from '@/lib/time';
 
 type CelestialObject = {
   name: string;
@@ -24,6 +26,7 @@ export function CelestialObjectsList({
   objects?: CelestialObject[] | null;
   title?: string;
 }) {
+  const { timeZone } = useTime();
   // Fallback to the major targets so the card is never empty.
   const defaults: CelestialObject[] = React.useMemo(
     () =>
@@ -68,21 +71,22 @@ export function CelestialObjectsList({
 
   const fmtTime = (val: string | Date | null) => {
     if (!val) return '-';
-    if (typeof val === 'string' && /\d{4}-\d{2}-\d{2}T/.test(val)) {
-      return new Date(val).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      });
+    const asDate =
+      typeof val === 'string' && /\d{4}-\d{2}-\d{2}T/.test(val)
+        ? new Date(val)
+        : val instanceof Date
+          ? val
+          : null;
+    if (asDate) {
+      return timeZone
+        ? formatZoned(asDate, timeZone, 'h:mm a')
+        : asDate.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
     }
-    if (val instanceof Date) {
-      return val.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      });
-    }
-    return val; // assume already formatted
+    return String(val); // already formatted
   };
 
   const azToCompass = (deg: number | null) => {

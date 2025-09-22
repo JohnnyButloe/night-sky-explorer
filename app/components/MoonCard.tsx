@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useTime } from '@/hooks/useTime';
+import { formatZoned } from '@/lib/time';
 
 type AnyMoon =
   | {
@@ -53,6 +55,8 @@ const firstDefined = <T,>(...vals: (T | null | undefined)[]) =>
 export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
   const now =
     typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
+  const { timeZone, selectedDateTime, now: nowCtx } = useTime();
+  const wall = selectedDateTime ?? nowCtx ?? now;
   const m = object ?? moon ?? null;
 
   if (!m) {
@@ -84,16 +88,20 @@ export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
     | undefined;
 
   const rise = riseIso
-    ? new Date(riseIso).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    ? timeZone
+      ? formatZoned(new Date(riseIso), timeZone, 'h:mm a')
+      : new Date(riseIso).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
     : 'N/A';
   const set = setIso
-    ? new Date(setIso).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    ? timeZone
+      ? formatZoned(new Date(setIso), timeZone, 'h:mm a')
+      : new Date(setIso).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
     : 'N/A';
 
   const phaseDeg = firstDefined(m.moonPhaseDeg, m.phase_degrees) as
@@ -127,7 +135,10 @@ export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
           <strong>Set Time:</strong> {set}
         </p>
         <p className="text-gray-500">
-          <em>Updated:</em> {now.toLocaleString()}
+          <em>Updated:</em>{' '}
+          {timeZone
+            ? formatZoned(wall, timeZone, 'M/d/yyyy, h:mm:ss a')
+            : wall.toLocaleString()}
         </p>
       </CardContent>
     </Card>

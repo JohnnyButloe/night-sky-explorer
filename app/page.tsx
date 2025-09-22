@@ -9,7 +9,7 @@ import CelestialObjectsList from './components/CelestialObjectsList';
 import SkyConditions from './components/SkyConditions';
 import { TimeProvider, useTime } from '@/hooks/useTime';
 import { getTimeZoneForCoords } from '@/lib/time';
-import DateTimePicker from '@/components/DateTimePicker';
+import DateTimePicker from '@/app/components/DateTimePicker';
 import { useDashboardData } from '@/hooks/useDashboardData';
 
 // Minimal types for local use

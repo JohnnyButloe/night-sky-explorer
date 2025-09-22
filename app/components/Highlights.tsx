@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { isWithinMinutes } from '@/lib/time';
+import { isWithinMinutes, formatZoned } from '@/lib/time';
+import { useTime } from '@/hooks/useTime';
 
 type Loc = { name: string; lat: number; lon: number } | null;
 
@@ -52,6 +53,10 @@ export default function Highlights({
   const totalVisible =
     visiblePlanets.length +
     (celestial?.moon && (celestial.moon.altitude_degrees ?? -90) > 0 ? 1 : 0);
+  const { timeZone } = useTime();
+  const updatedLabel = timeZone
+    ? formatZoned(when, timeZone, 'M/d/yyyy, h:mm:ss a')
+    : when.toLocaleString();
 
   // Night Sky Score (simple placeholder): penalize clouds (unknown => 100), light pollution (assume 5), reward visibility (unknown => 0)
   const cloudCover = 100; // until your weather endpoint exposes it
@@ -93,7 +98,7 @@ export default function Highlights({
           </div>
         )}
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Updated: {when.toLocaleString()}
+          Updated: {updatedLabel}
         </p>
       </CardContent>
     </Card>

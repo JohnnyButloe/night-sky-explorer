@@ -1,5 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Sun, Sunrise, Eye, Cloud, Thermometer } from 'lucide-react';
+import { useTime } from '@/hooks/useTime';
+import { formatZoned } from '@/lib/time';
 
 type Loc = { name: string; lat: number; lon: number } | null;
 
@@ -32,11 +34,23 @@ export default function SkyConditions({
   weather,
   currentTime,
 }: SkyConditionsProps) {
+  const { timeZone, selectedDateTime, now } = useTime();
+  const wall = selectedDateTime ?? now ?? currentTime;
+  const fmt = (iso?: string | null) =>
+    iso
+      ? timeZone
+        ? formatZoned(new Date(iso), timeZone, 'h:mm a')
+        : new Date(iso).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+      : '—';
+
   const lat = typeof location?.lat === 'number' ? location.lat.toFixed(4) : '—';
   const lon = typeof location?.lon === 'number' ? location.lon.toFixed(4) : '—';
 
-  const sunset = celestial?.sun?.set_iso ?? '—';
-  const sunrise = celestial?.sun?.rise_iso ?? '—';
+  const sunset = fmt(celestial?.sun?.set_iso);
+  const sunrise = fmt(celestial?.sun?.rise_iso);
 
   // Temperature (prefer structured "current.temperature_2m", fallback to legacy "temperature")
   const temperature =
@@ -95,7 +109,10 @@ export default function SkyConditions({
         </div>
 
         <p className="col-span-12 text-xs text-gray-600">
-          Selected Time: {currentTime.toLocaleString()}
+          Selected Time:{' '}
+          {timeZone
+            ? formatZoned(wall, timeZone, 'M/d/yyyy, h:mm:ss a')
+            : wall.toLocaleString()}
         </p>
       </CardContent>
     </Card>
