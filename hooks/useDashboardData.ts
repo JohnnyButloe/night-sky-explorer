@@ -1,80 +1,99 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+// hooks/useDashboardData.ts
+'use client';
+
+import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useTime } from '@/hooks/useTime';
 import { toPlanetRow } from '../lib/astroFormat';
 
-type Location = { name: string; lat: number; lon: number } | null;
+type Location = { name?: string; lat: number; lon: number } | null;
 
-type Celestial = any; // shape returned by /api/celestial
-type Weather = any; // shape returned by /api/weather
+// Loosely typed to avoid coupling; replace with your actual API types if available
+type Celestial = {
+  sun?: any;
+  moon?: any;
+  planets?: any[];
+  [k: string]: any;
+};
+type Weather = Record<string, any>;
 
 export function useDashboardData(location: Location) {
-  const [celestial, setCelestial] = useState<Celestial | null>(null);
-  const [weather, setWeather] = useState<Weather | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Normalize planets for the UI (Dir/Alt/Rise/Set ready to render)
-  const planets = useMemo(() => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    // Support either shape: { celestial: { planets } } or { planets }
-    const raw =
-      (celestial && (celestial.planets ?? celestial?.celestial?.planets)) ?? [];
-    return raw.map((p: any) => toPlanetRow(p, tz));
-  }, [celestial]);
+  const { selectedIso } = useTime(); // confirmed time in ISO (set on Submit)
 
-  // If you set a Next.js rewrite: use '' and call /api/... directly.
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+  const lat = location?.lat;
+  const lon = location?.lon;
 
-  const headers = useMemo(() => {
-    const key = process.env.NEXT_PUBLIC_API_KEY ?? '';
-    // send x-api-key if present; harmless if blank
-    return key
-      ? { 'x-api-key': key, Accept: 'application/json' }
-      : { Accept: 'application/json' };
-  }, []);
+  const enabled =
+    typeof lat === 'number' &&
+    typeof lon === 'number' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    !!selectedIso;
 
-  // keep AbortController for rapid changes
-  const controllerRef = useRef<AbortController | null>(null);
+  // QueryFn helpers (inline to keep the file self-contained)
+  const fetchCelestial = React.useCallback(async (): Promise<Celestial> => {
+    if (!enabled) return {} as Celestial;
+    const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    if (selectedIso) qs.set('iso', selectedIso);
+    const res = await fetch(`/api/celestial?${qs.toString()}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Celestial fetch failed: ${res.status}`);
+    return res.json();
+  }, [enabled, lat, lon, selectedIso]);
 
-  useEffect(() => {
-    if (!location) return;
+  const fetchWeather = React.useCallback(async (): Promise<Weather> => {
+    if (!enabled) return {};
+    const qs = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+    if (selectedIso) qs.set('iso', selectedIso);
+    const res = await fetch(`/api/weather?${qs.toString()}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
+    return res.json();
+  }, [enabled, lat, lon, selectedIso]);
 
-    // reset state for new location
-    setLoading(true);
-    setError(null);
-    setCelestial(null);
-    setWeather(null);
+  // React Query: include selectedIso in the key so Submit (which updates it) refetches all subscribers
+  const celestialQuery = useQuery<Celestial>({
+    queryKey: ['celestial', lat, lon, selectedIso],
+    queryFn: fetchCelestial,
+    enabled,
+    // keep the previous successful payload while fetching the next timestamp to avoid flicker
+    placeholderData: (prev) => prev,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
 
-    // cancel any inflight
-    controllerRef.current?.abort();
-    const controller = new AbortController();
-    controllerRef.current = controller;
+  const weatherQuery = useQuery<Weather>({
+    queryKey: ['weather', lat, lon, selectedIso],
+    queryFn: fetchWeather,
+    enabled,
+    placeholderData: (prev) => prev,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
 
-    async function safeFetch<T>(url: string): Promise<T> {
-      const r = await fetch(url, { headers, signal: controller.signal });
-      if (!r.ok) {
-        const detail = await r.text().catch(() => '');
-        throw new Error(`HTTP ${r.status}${detail ? `: ${detail}` : ''}`);
-      }
-      return r.json() as Promise<T>;
-    }
+  // Derived UI data (preserve your existing transformation)
+  const planets = React.useMemo(() => {
+    const list = (celestialQuery.data?.planets ?? []) as any[];
+    return list.map((p) => toPlanetRow(p));
+  }, [celestialQuery.data?.planets]);
 
-    const q = `lat=${encodeURIComponent(location.lat)}&lon=${encodeURIComponent(location.lon)}`;
+  return {
+    // raw query objects (handy for status flags in components)
+    celestialQuery,
+    weatherQuery,
 
-    Promise.all([
-      safeFetch<Celestial>(`${base}/api/celestial?${q}`),
-      safeFetch<Weather>(`${base}/api/weather?${q}`),
-    ])
-      .then(([celest, wx]) => {
-        setCelestial(celest);
-        setWeather(wx);
-      })
-      .catch((e: any) => {
-        if (e?.name !== 'AbortError')
-          setError(e?.message || 'Failed to load data');
-      })
-      .finally(() => setLoading(false));
+    // convenient slices
+    celestial: celestialQuery.data,
+    weather: weatherQuery.data,
+    planets,
 
-    return () => controller.abort();
-  }, [location, base, headers]);
-
-  return { celestial, weather, planets, loading, error };
+    // unified status
+    isLoading: celestialQuery.isLoading || weatherQuery.isLoading,
+    error:
+      (celestialQuery.error as Error | null) ??
+      (weatherQuery.error as Error | null) ??
+      null,
+  };
 }

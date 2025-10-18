@@ -2,6 +2,8 @@ import type React from 'react';
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { DateTimeProvider } from '@/app/providers/date-time';
+import { ReactQueryProvider } from '@/app/providers/react-query'; // client wrapper for QueryClientProvider
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,10 +20,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} cosmic-bg`}>
-        <div className="stars stars-sm"></div>
-        <div className="stars stars-md"></div>
-        <div className="stars stars-lg"></div>
-        <div className="relative z-10">{children}</div>
+        {/* React Query root (client) */}
+        <ReactQueryProvider>
+          {/* Existing app-level date/time context (client) */}
+          <DateTimeProvider>
+            {/* Your starfield layers */}
+            <div className="stars stars-sm"></div>
+            <div className="stars stars-md"></div>
+            <div className="stars stars-lg"></div>
+
+            {/* App content */}
+            <div className="relative z-10">{children}</div>
+          </DateTimeProvider>
+        </ReactQueryProvider>
       </body>
     </html>
   );

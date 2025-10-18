@@ -1,15 +1,26 @@
 'use client';
+
+import * as React from 'react';
+import { useDateTime } from '@/app/providers/date-time';
 import { useTime } from '@/hooks/useTime';
-import { set } from 'date-fns';
+import { Button } from '@/app/components/ui/button';
+import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 
+/**
+ * DateTimePicker
+ * - Shows the pending date/time in the user's selected IANA time zone.
+ * - Only when the user clicks Submit do we confirm (pending → selected),
+ *   which should trigger refetches across the dashboard (since queries include selectedIso).
+ */
 export default function DateTimePicker() {
-  const { timeZone, selectedDateTime, setSelectedDateTime } = useTime();
+  const { selectedIso, pendingIso, setPendingIso, confirm } = useDateTime();
+  const { timeZone } = useTime() as { timeZone?: string };
 
-  if (!timeZone || !selectedDateTime) return null;
+  if (!pendingIso) return null;
 
-  // datetime-local needs a local-like string (no timezone). We present the zoned
-  // date's wall-clock values and keep interpreting them in the same tz.
-  const toInputValue = (d: Date) => {
+  /** Build `YYYY-MM-DDTHH:mm` for <input type="datetime-local"> from ISO + tz. */
+  const toLocalInputValue = (iso: string, tz?: string) => {
+    const d = tz ? utcToZonedTime(new Date(iso), tz) : new Date(iso);
     const pad = (n: number) => n.toString().padStart(2, '0');
     const yyyy = d.getFullYear();
     const mm = pad(d.getMonth() + 1);
@@ -19,28 +30,49 @@ export default function DateTimePicker() {
     return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
   };
 
+  /**
+   * When the input changes, interpret the wall time in the selected tz
+   * and convert it to a UTC ISO string for app state.
+   */
   const onChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const val = e.target.value; // "YYYY-MM-DDThh:mm"
     if (!val) return;
-    // Interpret as wall time in the current tz by constructing a Date from parts.
-    const [datePart, timePart] = val.split('T');
-    const [y, m, d] = datePart.split('-').map(Number);
-    const [hh, mm] = timePart.split(':').map(Number);
-    // We keep a JS date with those wall-clock fields; the context will treat it as in 'timeZone'.
-    const next = new Date(y, m - 1, d, hh, mm, 0);
-    setSelectedDateTime(next);
+
+    // Treat the typed value as time in `timeZone` (if provided) and convert to UTC.
+    // Passing the "wall time" string directly is supported by date-fns-tz.
+    // Fallback to native Date if tz is unknown.
+    const nextUtc = timeZone
+      ? zonedTimeToUtc(`${val}:00`, timeZone)
+      : new Date(`${val}:00`);
+
+    setPendingIso(nextUtc.toISOString());
   };
 
+  const isDirty = pendingIso !== selectedIso;
+
   return (
-    <div className="flex items-center gap-2">
-      <label className="text-sm opacity-80">Date &amp; Time</label>
+    <div className="flex items-center gap-3">
+      <label className="text-sm opacity-80 min-w-[92px]">Date &amp; Time</label>
+
       <input
         type="datetime-local"
-        className="rounded-md bg-neutral-800 px-3 py-2 text-sm"
-        value={toInputValue(selectedDateTime)}
+        className="rounded-md bg-neutral-800 px-3 py-2 text-sm text-white border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        value={toLocalInputValue(pendingIso, timeZone)}
         onChange={onChange}
       />
-      <span className="text-xs opacity-60">{timeZone}</span>
+
+      <span className="text-xs opacity-60 tabular-nums">
+        {timeZone ?? 'Local'}
+      </span>
+
+      <Button
+        type="button"
+        onClick={confirm}
+        disabled={!isDirty}
+        title={isDirty ? 'Apply date/time' : 'No changes to apply'}
+      >
+        Submit
+      </Button>
     </div>
   );
 }

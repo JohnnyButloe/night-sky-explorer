@@ -3,6 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useTime } from '@/hooks/useTime';
+import { useDashboardData } from '@/hooks/useDashboardData';
 import { formatZoned } from '@/lib/time';
 
 type AnyMoon =
@@ -28,11 +29,8 @@ type AnyMoon =
   | undefined;
 
 interface MoonCardProps {
-  /** Pass the Moon entry from `celestialData.objects` (preferred today). */
-  object?: AnyMoon;
-  /** Or pass the top-level `celestial.moon`. */
-  moon?: AnyMoon;
-  currentTime: Date | string;
+  /** Dashboard location (lat/lon). If you have a location context, you can remove this prop and read from that hook instead. */
+  location: { lat: number; lon: number; name?: string } | null;
 }
 
 function phaseName(phaseDeg?: number | null): string | null {
@@ -52,12 +50,62 @@ function phaseName(phaseDeg?: number | null): string | null {
 const firstDefined = <T,>(...vals: (T | null | undefined)[]) =>
   vals.find((v) => v !== undefined && v !== null);
 
-export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
-  const now =
-    typeof currentTime === 'string' ? new Date(currentTime) : currentTime;
+export default function MoonCard({ location }: MoonCardProps) {
   const { timeZone, selectedDateTime, now: nowCtx } = useTime();
-  const wall = selectedDateTime ?? nowCtx ?? now;
-  const m = object ?? moon ?? null;
+  const wall = selectedDateTime ?? nowCtx ?? new Date();
+
+  // Fetch dashboard data keyed by location and selectedIso (inside the hook)
+  const { celestial, isLoading, error } = useDashboardData(location);
+
+  // Handle no location
+  if (!location) {
+    return (
+      <Card className="bg-card/50 backdrop-blur-sm p-3 w-full h-full">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-md text-primary">The Moon</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 text-xs text-gray-400">
+          <p>Please select a location to view moon data.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Loading / error states from React Query
+  if (isLoading) {
+    return (
+      <Card className="bg-card/50 backdrop-blur-sm p-3 w-full h-full">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-md text-primary">The Moon</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 text-xs text-gray-400">
+          <p>Loading moon data…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="bg-card/50 backdrop-blur-sm p-3 w-full h-full">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-md text-primary">The Moon</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 text-xs text-red-400">
+          <p>Failed to load moon data: {(error as Error).message}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Prefer top-level moon; fall back to any object that looks like the moon
+  const mFromTop: AnyMoon = (celestial as any)?.moon ?? null;
+  const mFromObjects: AnyMoon =
+    (celestial as any)?.objects?.find?.(
+      (o: any) => String(o?.name ?? '').toLowerCase() === 'moon',
+    ) ?? null;
+
+  const m = mFromTop ?? mFromObjects;
 
   if (!m) {
     return (
@@ -95,6 +143,7 @@ export default function MoonCard({ object, moon, currentTime }: MoonCardProps) {
           minute: '2-digit',
         })
     : 'N/A';
+
   const set = setIso
     ? timeZone
       ? formatZoned(new Date(setIso), timeZone, 'h:mm a')

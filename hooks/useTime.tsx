@@ -11,9 +11,13 @@ import { nowInZone } from '@/lib/time';
 type TimeCtx = {
   timeZone: string | null;
   setTimeZone: (tz: string) => void;
-  selectedDateTime: Date | null; // always interpreted in timeZone
+  /** Confirmed date/time the app should use (interpreted in timeZone). */
+  selectedDateTime: Date | null;
   setSelectedDateTime: (d: Date | null) => void;
-  now: Date | null; // "now" in timeZone
+  /** Convenience: ISO-8601 UTC string derived from selectedDateTime (stable for query keys). */
+  selectedIso: string | null;
+  /** "Now" in timeZone for UI convenience. */
+  now: Date | null;
 };
 
 const Ctx = createContext<TimeCtx>({
@@ -21,6 +25,7 @@ const Ctx = createContext<TimeCtx>({
   setTimeZone: () => {},
   selectedDateTime: null,
   setSelectedDateTime: () => {},
+  selectedIso: null,
   now: null,
 });
 
@@ -43,18 +48,34 @@ export function TimeProvider({ children }: { children: React.ReactNode }) {
     if (timeZone && !selectedDateTime) setSelectedDateTime(nowInZone(timeZone));
   }, [timeZone, selectedDateTime]);
 
+  // NEW: derive a stable ISO string from the confirmed selectedDateTime
+  const selectedIso = useMemo(
+    () => (selectedDateTime ? selectedDateTime.toISOString() : null),
+    [selectedDateTime],
+  );
+
   const value = useMemo(
     () => ({
       timeZone,
       setTimeZone,
       selectedDateTime,
       setSelectedDateTime,
+      selectedIso,
       now,
     }),
-    [timeZone, selectedDateTime, now],
+    [timeZone, selectedDateTime, selectedIso, now],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export const useTime = () => useContext(Ctx);
+
+/**
+ * Tiny helper so consumers can import a dedicated ISO selector if they prefer:
+ *   const iso = useSelectedIso();
+ */
+export const useSelectedIso = () => {
+  const { selectedIso } = useTime();
+  return selectedIso;
+};
